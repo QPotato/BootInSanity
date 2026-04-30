@@ -163,7 +163,7 @@ else
         xserver-xorg-core
         xserver-xorg-input-libinput xserver-xorg-input-evdev
         xserver-xorg-video-modesetting xserver-xorg-video-fbdev xserver-xorg-video-vesa
-        xinit xauth xterm dbus-x11
+        xinit xauth xterm dbus-x11 x11-xserver-utils
         # Window manager
         i3 i3-wm
         # Audio (ALSA only — no PulseAudio/PipeWire for lowest latency)

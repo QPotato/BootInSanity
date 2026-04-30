@@ -15,7 +15,7 @@ hide_edge_borders     both
 # (i3bar deliberately omitted.)
 
 # Autostart XSanity launcher.
-exec --no-startup-id /opt/5panelos/launch.sh
+exec --no-startup-id /opt/bootinsanity/launch.sh
 
 # Minimal escape hatches (Phase 4 expands these).
 bindsym $mod+Return  exec --no-startup-id lxterminal

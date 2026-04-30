@@ -17,11 +17,15 @@ apt-get update >/dev/null
 # forward via security archive).
 apt-get install -y --no-install-recommends \
     linux-image-amd64 linux-headers-amd64 \
-    linux-source-5.10 \
     build-essential bc kmod cpio flex bison \
     libssl-dev libelf-dev rsync \
     python3 \
     git ca-certificates
+
+# linux-source-5.10 ships a tarball at /usr/src/linux-source-5.10.tar.xz that
+# the previous build's cleanup wipes. Force reinstall so the tarball is
+# present even on cached chroot rebuilds.
+apt-get install -y --reinstall --no-install-recommends linux-source-5.10
 
 # Re-detect KVER after the upgrade so we build for the kernel that ships.
 KVER="$(ls -1 /boot/ | grep '^vmlinuz-' | sort -V | tail -1 | sed 's|^vmlinuz-||')"
@@ -88,6 +92,11 @@ strip --strip-debug "$EXTRA/piuio.ko" 2>/dev/null || true
 # Refresh module dependency tables
 # ---------------------------------------------------------------------------
 depmod -a "$KVER"
+
+# Rebuild initramfs so our patched usbhid is what loads at early boot (stock
+# kernel/.../usbhid.ko is otherwise pulled in first and blocks the updates/
+# replacement until userspace explicitly rmmod+modprobe).
+update-initramfs -u -k "$KVER"
 
 echo "==> installed modules:"
 modinfo "$UPDATES/usbhid.ko" | grep -E '^(filename|vermagic|^parm: (kbpoll|jspoll|elsepoll|mousepoll))' | head -8

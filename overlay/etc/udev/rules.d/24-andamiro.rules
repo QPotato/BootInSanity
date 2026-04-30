@@ -1,0 +1,5 @@
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="0d2f", ATTRS{idProduct}=="1020", OWNER="pump", GROUP="pump", MODE="0660"
+KERNEL=="hidraw*", ATTRS{idVendor}=="0d2f", ATTRS{idProduct}=="1020", OWNER="pump", GROUP="pump", MODE="0660"
+
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="0d2f", ATTRS{idProduct}=="1040", OWNER="pump", GROUP="pump", MODE="0660"
+KERNEL=="hidraw*", ATTRS{idVendor}=="0d2f", ATTRS{idProduct}=="1040", OWNER="pump", GROUP="pump", MODE="0660"

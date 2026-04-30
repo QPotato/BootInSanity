@@ -1,0 +1,22 @@
+#stac p1/2
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="04d8", ATTRS{idProduct}=="ea4b", OWNER="pump", GROUP="pump", MODE="0660"
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="04d8", ATTRS{idProduct}=="ea4a", OWNER="pump", GROUP="pump", MODE="0660"
+KERNEL=="hidraw*", ATTRS{idVendor}=="04d8", ATTRS{idProduct}=="ea4b", OWNER="pump", GROUP="pump", MODE="0660"
+KERNEL=="hidraw*", ATTRS{idVendor}=="04d8", ATTRS{idProduct}=="ea4a", OWNER="pump", GROUP="pump", MODE="0660"
+
+#snek prototype
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="04d8", ATTRS{idProduct}=="eb5b", OWNER="pump", GROUP="pump", MODE="0660"
+KERNEL=="hidraw*", ATTRS{idVendor}=="04d8", ATTRS{idProduct}=="eb5b", OWNER="pump", GROUP="pump", MODE="0660"
+
+#snek final
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="10a8", OWNER="pump", GROUP="pump", MODE="0660"
+KERNEL=="hidraw*", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="10a8", OWNER="pump", GROUP="pump", MODE="0660"
+
+#gpb
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="04d8", ATTRS{idProduct}=="ea6a", OWNER="pump", GROUP="pump", MODE="0660"
+KERNEL=="hidraw*", ATTRS{idVendor}=="04d8", ATTRS{idProduct}=="ea6a", OWNER="pump", GROUP="pump", MODE="0660"
+
+#fusion
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="0547", ATTRS{idProduct}=="1337", OWNER="pump", GROUP="pump", MODE="0660"
+KERNEL=="hidraw*", ATTRS{idVendor}=="0547", ATTRS{idProduct}=="1337", OWNER="pump", GROUP="pump", MODE="0660"
+

@@ -1,0 +1,21 @@
+# Build artifacts
+work/
+build/
+*.iso
+*.img
+*.vhd
+*.qcow2
+
+# Files NOT redistributed (third-party / reference / private notes)
+itg-v0-24/
+XSanity 0.96.0/
+refs/
+ITG System Image Manual.pdf
+project.md
+PLAN.md
+PROGRESS.md
+
+# Editor / OS noise
+.DS_Store
+*.swp
+*~

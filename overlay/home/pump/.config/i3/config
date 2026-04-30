@@ -1,0 +1,27 @@
+# i3 config file (v4)
+# 5PanelOS minimal i3 config — kiosk mode for XSanity.
+# Phase 4 will expand with system-mode keybinds (Win+M, Win+R, etc).
+
+set $mod Mod4
+
+font pango:monospace 8
+
+# Kiosk: no borders, no bars.
+default_border        none
+default_floating_border none
+hide_edge_borders     both
+
+# No status bar.
+# (i3bar deliberately omitted.)
+
+# Autostart XSanity launcher.
+exec --no-startup-id /opt/5panelos/launch.sh
+
+# Minimal escape hatches (Phase 4 expands these).
+bindsym $mod+Return  exec --no-startup-id lxterminal
+bindsym $mod+q       kill
+bindsym $mod+b       exec --no-startup-id systemctl reboot
+bindsym $mod+p       exec --no-startup-id systemctl poweroff
+
+# Force fullscreen for everything we launch.
+for_window [class=".*"] fullscreen enable

@@ -1,0 +1,2 @@
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="beef", ATTRS{idProduct}=="5730", OWNER="pump", GROUP="pump", MODE="0660"
+KERNEL=="hidraw*", ATTRS{idVendor}=="beef", ATTRS{idProduct}=="5730", OWNER="pump", GROUP="pump", MODE="0660"

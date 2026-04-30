@@ -1,0 +1,49 @@
+--- hid-core.c	2018-11-07 17:33:29.444766931 -0600
++++ hid-core.c.new	2018-11-07 16:48:04.254803878 -0600
+@@ -60,6 +60,10 @@
+ module_param_named(kbpoll, hid_kbpoll_interval, uint, 0644);
+ MODULE_PARM_DESC(kbpoll, "Polling interval of keyboards");
+ 
++static unsigned int hid_elsepoll_interval;
++module_param_named(elsepoll, hid_elsepoll_interval, uint, 0644);
++MODULE_PARM_DESC(elsepoll, "Polling interval of non-mouse non-joysticks");
++
+ static unsigned int ignoreled;
+ module_param_named(ignoreled, ignoreled, uint, 0644);
+ MODULE_PARM_DESC(ignoreled, "Autosuspend with active leds");
+@@ -1104,17 +1108,32 @@
+ 		 */
+ 		switch (hid->collection->usage) {
+ 		case HID_GD_MOUSE:
+-			if (hid_mousepoll_interval > 0)
++			if (hid_mousepoll_interval > 0) {
++				printk(KERN_INFO "%s: Changed interval to mousepoll: %d -> %d\n",
++                                      hid->name, interval, hid_mousepoll_interval);
+ 				interval = hid_mousepoll_interval;
++			}
+ 			break;
+ 		case HID_GD_JOYSTICK:
+-			if (hid_jspoll_interval > 0)
++			if (hid_jspoll_interval > 0) {
++				printk(KERN_INFO "%s: Changed interval to jspoll: %d -> %d\n",
++                                      hid->name, interval, hid_jspoll_interval);
+ 				interval = hid_jspoll_interval;
++			}
+ 			break;
+ 		case HID_GD_KEYBOARD:
+-			if (hid_kbpoll_interval > 0)
++			if (hid_kbpoll_interval > 0) {
++				printk(KERN_INFO "%s: Changed interval to kbpoll: %d -> %d\n",
++                                      hid->name, interval, hid_kbpoll_interval);
+ 				interval = hid_kbpoll_interval;
++			}
+ 			break;
++		default:
++		   if (hid_elsepoll_interval > 0) {
++				   printk(KERN_INFO "%s: Changed interval to elsepoll: %d -> %d\n",
++						  hid->name, interval, hid_elsepoll_interval);
++				   interval = hid_elsepoll_interval;
++		   }
+ 		}
+ 
+ 		ret = -ENOMEM;

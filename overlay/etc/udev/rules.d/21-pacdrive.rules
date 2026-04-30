@@ -1,0 +1,2 @@
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="d209", ATTRS{idProduct}=="150[0-9]", OWNER="pump", GROUP="pump", MODE="0660"
+KERNEL=="hidraw*", ATTRS{idVendor}=="d209", ATTRS{idProduct}=="150[0-9]", OWNER="pump", GROUP="pump", MODE="0660"

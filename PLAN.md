@@ -340,6 +340,82 @@ Real-hardware validation on user's MK9 follows QEMU green light.
   XSanity's bundled glibc symbols mapping or instruct user to source the
   pre-Linux-Mint-24.04 build of XSanity if bundled-loader strategy fails.
 
+## Future Strategy — Trixie + Xlibre + Community NV Drivers (post-RC1)
+
+### Context
+
+Debian 11 (bullseye) reaches EOL 2026-08 (~16 months from now). MVP ships on bullseye;
+post-RC1 pivot targets **Debian 13 (trixie)** + **Xlibre** (community StepMania variant)
+to extend hardware support beyond EOL window and reduce maintainer burden.
+
+### Trixie + Xlibre Foundation
+
+| Item | Bullseye (current) | Trixie (future) |
+|---|---|---|
+| **Base Distro** | Debian 11 LTS, 5.10 kernel | Debian 13 LTS, 6.x kernel |
+| **Simulator** | XSanity 0.96.0 (proprietary) | Xlibre (community StepMania fork, GPL) |
+| **Audio** | ALSA | ALSA |
+| **GPU: 8400GS** | nvidia-legacy-340xx-driver | Trix community patches + dkms (AUR-derived) |
+| **GPU: 9300GS/GT** | nvidia-legacy-390xx-driver / 470 | Trix community + dkms |
+| **PIUIO/LXIO Bridge** | djpohly/piuio kernel kmod (archived, breaks ≥5.7) | **PIUIO2Key-Linux** (userspace pyusb→uinput, Python, maintained) |
+| **usbhid 1ms patch** | Kernel module rebuild (5.10-specific) | Trivially portable to 6.x; no structural hid-core.c changes |
+| **Apt Repos** | Official bullseye | Trixie official + community repos (e.g., Netrunner 26 default) |
+| **EOL** | 2026-08 | 2028-06 |
+
+### PIUIO2Key-Linux Discovery
+
+**GitHub**: `carlos-garcia/PIUIO2Key-Linux` (recent, active).
+
+**Advantages over djpohly/piuio kmod**:
+- **Userspace Python**: no kernel coupling, no module rebuild per kernel version.
+- **Cross-device**: PIUIO (0547:1002), LXIO (0d2f:1020 / 0d2f:1040), plus extensible USB HID abstractions.
+- **Polling**: 1000 Hz default, configurable.
+- **UInput bridge**: exports panel inputs as standard Linux joystick events → XSanity + Xlibre both consume transparently.
+- **Maintenance**: GPL-licensed, community-backed; no vendor lock-in on kernel module.
+
+**Integration**: systemd user service (or session helper) on boot; auto-restarts if processes die.
+
+### GPU Auto-Pick Strategy (Option B)
+
+**Goal**: no manual GPU selection needed; user boots, first-run detects PCI ID → loads correct driver.
+
+**Mechanism**:
+1. **Build time**: compile nvidia-legacy-340/390/470 LKMs + libs as pre-built module bundles.
+   - Store at `lib/gpu-drivers/340/uname-r/`, etc. (keyed by kernel version).
+   - Include `.ko` files + any version-specific compatibility shims.
+
+2. **First boot**: `firstboot.sh` runs before XSanity launch.
+   - Query `lspci | grep -i nvidia`: extract Device ID (e.g., `10de:0395` for 8400GS).
+   - Lookup table: Device ID → driver choice (340 for 03-series, 390 for GF, 470 for GK+).
+   - Copy correct `.ko` + libs into live system.
+   - `depmod -a`, `update-initramfs`.
+   - *Optional reboot* if modules not loadable in-place (conservative path).
+
+3. **Cold start** (next boot after reboot): correct driver loads; set once per install.
+
+**Fallback**: if no match or lspci fails, default to newest driver (470) with warning in log.
+
+### MK Series Expansion
+
+**Trixie + Xlibre + PIUIO2Key** unlocks:
+
+| Model | CPU | RAM | GPU | Display | IO | Status |
+|---|---|---|---|---|---|---|
+| **MK9v1** | Celeron E3400–Core 2 Quad | 4 GB DDR2 | 8400GS | HDMI/DVI/VGA 720p | PIUIO | ✅ MVP |
+| **MK9v2** | Core 2 | 8 GB DDR3 | 9300GS / GT210 / GT610 / GT710 | same | PIUIO / LXIO | ✅ MVP |
+| **MK6v2** | Core 2 Duo | 4 GB | 9400 GT / GT220 | same | PIUIO | 🎯 Post-MVP (trixie) |
+| **MK10** | Ryzen 3 / 5 | 16 GB DDR4 | GTX 1050 / 1650 | 1080p + | LXIO v2 | 🎯 Post-MVP (trixie) |
+
+**Xlibre** (community StepMania + Pump It Up stepfiles) also supports desktop play;
+build can serve both cabinet + arcade-at-home market post-MVP.
+
+### usbhid Patch on 6.x
+
+kernel/usbhid-1ms.patch porting effort: **low**.
+- ITG's patch targets 5.10.11; Debian 11 ships 5.10.0-39. Same major series, trivial application.
+- Trixie ships 6.1+ or 6.x. hid-core.c structure unchanged fundamentally; offset adjustments only.
+- Revalidate on first trixie test cabinet but no deep rework expected.
+
 ## Tested Combinations Matrix (to populate during Phase 1+)
 
 | BootInSanity | Debian ISO | XSanity | MK9 | GPU | Status |

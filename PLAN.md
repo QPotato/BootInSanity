@@ -488,26 +488,45 @@ Scans `/mnt/piu/` for `[0-9][0-9]_*.img.gz`:
 - Updates i3 keybind config (or a runtime menu script) with discovered versions.
 - Run at: first boot (via `firstboot.sh`), and any time user adds a version + triggers rescan.
 
-### GRUB Boot Menu
+### Boot Selection UI (PIUIO-navigable)
+
+GRUB is **not** used for game selection — PIUIO is not a standard HID keyboard and is invisible to GRUB. Instead, GRUB auto-boots BootInSanity with a short/zero timeout (no operator interaction at GRUB level), and BootInSanity shows a fullscreen launcher where Linux drivers are alive.
+
+**Fullscreen launcher** (`/opt/bootinsanity/launcher.py`):
+- Runs as the first thing after autologin (before XSanity), driven by i3 autostart.
+- Reads PIUIO input via `evdev` from the uinput device created by PIUIO2Key-Linux.
+- Scans `/mnt/piu/` for discovered PIU versions + always offers Xlibre/XSanity.
+- Shows a fullscreen SDL/pygame UI:
 
 ```
-┌─────────────────────────────────────┐
-│  BootInSanity                       │  ← default (XSanity / Xlibre)
-│  PIU Extra (07)                     │
-│  PIU The Premiere 2 (11)            │
-│  PIU NX Absolute (21)               │
-│  PIU Fiesta EX (25)                 │
-│  [System Shell]                     │
-└─────────────────────────────────────┘
+┌─────────────────────────────────────────┐
+│                                         │
+│          BootInSanity                   │
+│                                         │
+│  ▶  Xlibre / XSanity           [10s]   │  ← default with countdown
+│     PIU Extra (07)                      │
+│     PIU The Premiere 2 (11)             │
+│     PIU NX Absolute (21)                │
+│     PIU Fiesta EX (25)                  │
+│                                         │
+│  UP/DOWN panel to navigate  •  SELECT   │
+└─────────────────────────────────────────┘
 ```
 
-GRUB menu dynamically generated at each boot from discovered versions. No manual GRUB editing needed.
+**Controls**:
+| Input | Action |
+|---|---|
+| P1/P2 Up panel | Move cursor up |
+| P1/P2 Down panel | Move cursor down |
+| P1/P2 Center or SELECT button | Launch selected |
 
-### i3 / In-Session PIU Picker
+**Timeout**: 10 s countdown → auto-launch default (Xlibre/XSanity). Configurable in `/mnt/xsanity/bootinsanity.conf`.
 
-`Win+G` → full-screen picker (rofi or custom script) showing discovered PIU versions.
-Select → kills XSanity crash-loop, launches `piu-launch.sh {version}`.
-PIU exit → returns to XSanity crash-loop.
+**Launch flow**:
+- Xlibre/XSanity selected → launcher exits → i3 starts XSanity crash-loop as normal.
+- PIU version selected → launcher stops `piuio2key.service` → exec `piu-launch.sh {version}` → pumptools owns IO → on exit, restart `piuio2key.service` → return to launcher.
+
+**No per-game GRUB entries needed.** GRUB stays simple: one BootInSanity entry + optional recovery shell.
 
 ### Adding New Versions (Post-Install)
 

@@ -47,7 +47,8 @@ help:
 	@echo "  make distclean                   also remove builder Docker image"
 
 builder:
-	docker build -t $(IMAGE_NAME) .
+	docker build --pull=never -t $(IMAGE_NAME) . 2>/dev/null \
+	    || docker build -t $(IMAGE_NAME) .
 
 iso: builder
 	@if [ -z "$(DEBIAN_ISO)" ]; then \

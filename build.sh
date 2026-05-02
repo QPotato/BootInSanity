@@ -182,17 +182,13 @@ else
         parted squashfs-tools dosfstools e2fsprogs rsync util-linux
         grub-pc-bin grub-efi-amd64-bin grub2-common grub-common
         os-prober
-        # pumptools runtime: 32-bit multiarch libs for PIU legacy games
-        # (pumptools hooks are i386 .so files; games run as 32-bit binaries)
-        libc6-i386 lib32stdc++6
-        libx11-6:i386 libasound2:i386 libgl1-mesa-dri:i386 libglu1-mesa:i386
-        libcurl4:i386 libconfig++9v5:i386
-        # loop-mount + extraction for PIU .img.gz images
-        mount util-linux
+        # loop-mount + extraction for PIU .img.gz images (util-linux already included)
         # Python + evdev for PIUIO2Key-Linux and launcher UI
         python3 python3-evdev python3-pygame
-        # curl for pumptools download at build time (wget as fallback)
-        curl
+        # curl for pumptools download at build time
+        curl unzip
+        # i386 multiarch libs for pumptools installed in step [4b] after
+        # dpkg --add-architecture i386 (cannot be listed here in mmdebstrap INCLUDE)
     )
     case "$GPU" in
         340) INCLUDE+=( nvidia-legacy-340xx-driver nvidia-detect ) ;;

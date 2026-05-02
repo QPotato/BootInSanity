@@ -29,7 +29,7 @@ help:
 	@echo "BootInSanity build targets"
 	@echo ""
 	@echo "  make builder                     build Docker builder image"
-	@echo "  make iso DEBIAN_ISO=<path>       build BootInSanity installer ISO"
+	@echo "  make iso DEBIAN_ISO=<path>       build BootInSanity installer ISO (Debian 13 DVD-1)"
 	@echo "      [XSANITY_DIR=<path>]         (Phase 1+; not required in Phase 0)"
 	@echo "      [OUTPUT=<path>]              default: build/bootinsanity-installer.iso"
 	@echo "      [VERSION=<string>]           default: dev"

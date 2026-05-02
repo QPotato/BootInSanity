@@ -1,10 +1,12 @@
 #!/bin/bash
-# BootInSanity build script
+# BootInSanity build script — trixie-xlibre branch
 #
-# Phase 0: bare Debian 11 live ISO bootable in QEMU.                 [DONE]
-# Phase 1: + X11 + i3 + ALSA + autologin + XSanity injection.        [CURRENT]
+# Target: Debian 13 (trixie) + 6.x kernel + Xlibre + PIUIO2Key-Linux
+#
+# Phase 0: bare Debian 13 live ISO bootable in QEMU.
+# Phase 1: + X11 + i3 + ALSA + autologin + XSanity/Xlibre injection.
 # Phase 2: Clonezilla-style installer, 3-partition install.
-# Phase 3: NVIDIA legacy auto-pick, usbhid 1ms, PIUIO/LXIO.
+# Phase 3: NVIDIA (community packages TBD), usbhid 6.x port, PIUIO2Key-Linux.
 # Phase 4: System mode (Win+key shortcuts).
 # Phase 5: Update flow + branding polish.
 
@@ -15,7 +17,7 @@ usage() {
 Usage: build.sh [OPTIONS]
 
 Required (interactive prompt if absent and stdin is a TTY):
-  --debian-iso PATH       Debian 11 DVD ISO (debian-11.x-amd64-DVD-1.iso)
+  --debian-iso PATH       Debian 13 DVD ISO (debian-13.x-amd64-DVD-1.iso)
   --output PATH           Output ISO path
 
 Optional:
@@ -26,12 +28,12 @@ Optional:
   --gpu TYPE              GPU driver baked in (default: nouveau)
                           Values: nouveau | 340 | 390 | 470
                             nouveau  - in-tree open-source (works for all)
-                            340      - nvidia-legacy-340xx-driver
-                                       (8400GS / 9300GS / GT210 / GT220)
-                            390      - nvidia-legacy-390xx-driver
-                                       (GT4xx / GT5xx / GT610 Fermi)
-                            470      - nvidia-driver (Kepler GT630/GT710+)
-                          One ISO per GPU family — rebuild per cabinet.
+                            340      - legacy 340xx (community pkg, TBD)
+                            390      - legacy 390xx (community pkg, TBD)
+                            470      - legacy 470xx (community pkg, TBD)
+                          Note: only nouveau works on trixie today.
+                          Community NVIDIA packages planned; 340/390/470
+                          will error until implemented.
   --no-cache              Rebuild chroot from scratch
   --debug                 Drop into chroot shell before ISO-pack
   -h, --help              Show this help
@@ -72,7 +74,7 @@ prompt_if_missing() {
     fi
 }
 
-prompt_if_missing DEBIAN_ISO "Path to Debian 11 DVD ISO"
+prompt_if_missing DEBIAN_ISO "Path to Debian 13 DVD ISO"
 prompt_if_missing OUTPUT     "Output ISO path"
 
 [[ -n "$DEBIAN_ISO" ]] || { echo "ERROR: --debian-iso required" >&2; exit 1; }
@@ -134,8 +136,8 @@ mount -o loop,ro "$DEBIAN_ISO" "$DEBIAN_MNT"
 if [[ -f "${DEBIAN_MNT}/.disk/info" ]]; then
     DISK_INFO="$(cat "${DEBIAN_MNT}/.disk/info")"
     echo "    .disk/info: $DISK_INFO"
-    if [[ "$DISK_INFO" != *"Debian GNU/Linux 11"* ]]; then
-        echo "    WARN: not a Debian 11 ISO (proceeding anyway)" >&2
+    if [[ "$DISK_INFO" != *"Debian GNU/Linux 13"* ]]; then
+        echo "    WARN: not a Debian 13 ISO (proceeding anyway)" >&2
     fi
 else
     echo "    WARN: .disk/info missing — may not be a Debian DVD ISO" >&2
@@ -184,23 +186,26 @@ else
         os-prober
     )
     case "$GPU" in
-        340) INCLUDE+=( nvidia-legacy-340xx-driver nvidia-detect ) ;;
-        390) INCLUDE+=( nvidia-legacy-390xx-driver nvidia-detect ) ;;
-        470) INCLUDE+=( nvidia-driver           nvidia-detect ) ;;
-        nouveau) ;;  # nothing extra; xserver-xorg-video-modesetting handles it
+        nouveau) ;;  # in-tree modesetting; no extra packages
+        340|390|470)
+            # Community NVIDIA legacy packages for trixie not yet implemented.
+            # Will be added when community repos are set up (see PLAN.md trixie section).
+            echo "ERROR: GPU=$GPU not yet supported on trixie. Use GPU=nouveau." >&2
+            exit 1
+            ;;
     esac
     INCLUDE_CSV=$(IFS=,; echo "${INCLUDE[*]}")
 
-    # contrib + non-free needed for nvidia-* packages.
+    # non-free-firmware is a separate component in trixie (split from non-free in bookworm).
     mmdebstrap \
         --variant=minbase \
         --architectures=amd64 \
-        --components=main,contrib,non-free \
+        --components=main,contrib,non-free,non-free-firmware \
         --include="$INCLUDE_CSV" \
-        bullseye \
+        trixie \
         "$CHROOT" \
-        "deb [trusted=yes] copy://${DEBIAN_MNT} bullseye main contrib" \
-        "deb [trusted=yes] http://deb.debian.org/debian bullseye main contrib non-free"
+        "deb [trusted=yes] copy://${DEBIAN_MNT} trixie main contrib" \
+        "deb [trusted=yes] http://deb.debian.org/debian trixie main contrib non-free non-free-firmware"
 fi
 
 echo "==> [3/9] Applying rootfs overlay"
@@ -221,9 +226,9 @@ fi
 # with network-only sources usable from inside the chroot at build time
 # AND on the installed system at runtime.
 cat > "${CHROOT}/etc/apt/sources.list" <<'EOF'
-deb http://deb.debian.org/debian              bullseye           main contrib non-free
-deb http://deb.debian.org/debian              bullseye-updates   main contrib non-free
-deb http://security.debian.org/debian-security bullseye-security main contrib non-free
+deb http://deb.debian.org/debian               trixie           main contrib non-free non-free-firmware
+deb http://deb.debian.org/debian               trixie-updates   main contrib non-free non-free-firmware
+deb http://security.debian.org/debian-security trixie-security  main contrib non-free non-free-firmware
 EOF
 
 # Bake hostname + version banner.
@@ -273,17 +278,26 @@ chroot_run sed -i 's/^# *en_US\.UTF-8/en_US.UTF-8/' /etc/locale.gen
 chroot_run locale-gen
 chroot_run update-locale LANG=en_US.UTF-8
 
-echo "==> [4b/9] Building out-of-tree kernel modules (usbhid 1ms + piuio)"
-PATCH_SRC="${ROOT_DIR}/kernel/usbhid-1ms.patch"
-BUILDER_SRC="${ROOT_DIR}/kernel/build-kmods.sh"
-if [[ -f "$PATCH_SRC" ]] && [[ -f "$BUILDER_SRC" ]]; then
-    cp "$PATCH_SRC"   "${CHROOT}/tmp/usbhid-1ms.patch"
-    cp "$BUILDER_SRC" "${CHROOT}/tmp/build-kmods.sh"
-    chmod +x "${CHROOT}/tmp/build-kmods.sh"
-    chroot_run /tmp/build-kmods.sh
-    rm -f "${CHROOT}/tmp/usbhid-1ms.patch" "${CHROOT}/tmp/build-kmods.sh"
+echo "==> [4b/9] Building out-of-tree kernel modules"
+# usbhid-1ms.patch: written for 5.10; needs porting to trixie 6.x (pending).
+# piuio kmod: replaced by PIUIO2Key-Linux (userspace Python, no kmod needed).
+# TODO: port usbhid patch to 6.x, add PIUIO2Key-Linux systemd service.
+KVER_CHROOT="$(ls -1 "${CHROOT}/boot/" | grep '^vmlinuz-' | sort -V | tail -1 | sed 's|^vmlinuz-||')"
+KMAJ="${KVER_CHROOT%%.*}"
+if [[ "$KMAJ" -le 5 ]]; then
+    PATCH_SRC="${ROOT_DIR}/kernel/usbhid-1ms.patch"
+    BUILDER_SRC="${ROOT_DIR}/kernel/build-kmods.sh"
+    if [[ -f "$PATCH_SRC" ]] && [[ -f "$BUILDER_SRC" ]]; then
+        cp "$PATCH_SRC"   "${CHROOT}/tmp/usbhid-1ms.patch"
+        cp "$BUILDER_SRC" "${CHROOT}/tmp/build-kmods.sh"
+        chmod +x "${CHROOT}/tmp/build-kmods.sh"
+        chroot_run /tmp/build-kmods.sh
+        rm -f "${CHROOT}/tmp/usbhid-1ms.patch" "${CHROOT}/tmp/build-kmods.sh"
+    else
+        echo "    WARN: kernel/build-kmods.sh missing — skipping" >&2
+    fi
 else
-    echo "    WARN: kernel/build-kmods.sh missing — skipping" >&2
+    echo "    Kernel $KVER_CHROOT (6.x): usbhid 1ms patch not yet ported, PIUIO2Key-Linux pending — skipping kmod build"
 fi
 
 echo "==> [5/9] Injecting XSanity"

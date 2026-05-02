@@ -182,6 +182,17 @@ else
         parted squashfs-tools dosfstools e2fsprogs rsync util-linux
         grub-pc-bin grub-efi-amd64-bin grub2-common grub-common
         os-prober
+        # pumptools runtime: 32-bit multiarch libs for PIU legacy games
+        # (pumptools hooks are i386 .so files; games run as 32-bit binaries)
+        libc6-i386 lib32stdc++6
+        libx11-6:i386 libasound2:i386 libgl1-mesa-dri:i386 libglu1-mesa:i386
+        libcurl4:i386 libconfig++9v5:i386
+        # loop-mount + extraction for PIU .img.gz images
+        mount util-linux
+        # Python + evdev for PIUIO2Key-Linux and launcher UI
+        python3 python3-evdev python3-pygame
+        # curl for pumptools download at build time (wget as fallback)
+        curl
     )
     case "$GPU" in
         340) INCLUDE+=( nvidia-legacy-340xx-driver nvidia-detect ) ;;
@@ -273,17 +284,46 @@ chroot_run sed -i 's/^# *en_US\.UTF-8/en_US.UTF-8/' /etc/locale.gen
 chroot_run locale-gen
 chroot_run update-locale LANG=en_US.UTF-8
 
-echo "==> [4b/9] Building out-of-tree kernel modules (usbhid 1ms + piuio)"
-PATCH_SRC="${ROOT_DIR}/kernel/usbhid-1ms.patch"
-BUILDER_SRC="${ROOT_DIR}/kernel/build-kmods.sh"
-if [[ -f "$PATCH_SRC" ]] && [[ -f "$BUILDER_SRC" ]]; then
-    cp "$PATCH_SRC"   "${CHROOT}/tmp/usbhid-1ms.patch"
-    cp "$BUILDER_SRC" "${CHROOT}/tmp/build-kmods.sh"
-    chmod +x "${CHROOT}/tmp/build-kmods.sh"
-    chroot_run /tmp/build-kmods.sh
-    rm -f "${CHROOT}/tmp/usbhid-1ms.patch" "${CHROOT}/tmp/build-kmods.sh"
+echo "==> [4b/9] Installing pumptools (PIU legacy game compatibility layer)"
+PUMPTOOLS_VER="1.14"
+PUMPTOOLS_URL="https://github.com/pumpitupdev/pumptools/releases/download/v${PUMPTOOLS_VER}/pumptools.zip"
+PUMPTOOLS_DEST="${CHROOT}/opt/pumptools"
+mkdir -p "$PUMPTOOLS_DEST"
+
+# Enable i386 multiarch so 32-bit pumptools hooks + game binaries can run.
+chroot_run dpkg --add-architecture i386
+chroot_run apt-get update -qq
+chroot_run apt-get install -y --no-install-recommends \
+    libc6-i386 lib32stdc++6 \
+    libx11-6:i386 libasound2:i386 \
+    libgl1-mesa-dri:i386 libglu1-mesa:i386 \
+    libcurl4:i386 || true
+
+# Download pumptools prebuilt release into chroot.
+if curl -fsSL --max-time 60 -o "${PUMPTOOLS_DEST}/pumptools.zip" "$PUMPTOOLS_URL"; then
+    chroot_run bash -c "cd /opt/pumptools && unzip -q pumptools.zip && rm pumptools.zip"
+    echo "    pumptools v${PUMPTOOLS_VER} installed at /opt/pumptools"
 else
-    echo "    WARN: kernel/build-kmods.sh missing — skipping" >&2
+    echo "    WARN: pumptools download failed — PIU launch will not work" >&2
+fi
+
+echo "==> [4c/9] Building out-of-tree kernel modules (usbhid 1ms + piuio)"
+KVER_CHROOT="$(ls -1 "${CHROOT}/boot/" | grep '^vmlinuz-' | sort -V | tail -1 | sed 's|^vmlinuz-||')"
+KMAJ="${KVER_CHROOT%%.*}"
+if [[ "$KMAJ" -le 5 ]]; then
+    PATCH_SRC="${ROOT_DIR}/kernel/usbhid-1ms.patch"
+    BUILDER_SRC="${ROOT_DIR}/kernel/build-kmods.sh"
+    if [[ -f "$PATCH_SRC" ]] && [[ -f "$BUILDER_SRC" ]]; then
+        cp "$PATCH_SRC"   "${CHROOT}/tmp/usbhid-1ms.patch"
+        cp "$BUILDER_SRC" "${CHROOT}/tmp/build-kmods.sh"
+        chmod +x "${CHROOT}/tmp/build-kmods.sh"
+        chroot_run /tmp/build-kmods.sh
+        rm -f "${CHROOT}/tmp/usbhid-1ms.patch" "${CHROOT}/tmp/build-kmods.sh"
+    else
+        echo "    WARN: kernel/build-kmods.sh missing — skipping" >&2
+    fi
+else
+    echo "    Kernel $KVER_CHROOT (6.x+): kmod build skipped (usbhid patch not yet ported)"
 fi
 
 echo "==> [5/9] Injecting XSanity"

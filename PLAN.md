@@ -547,11 +547,17 @@ p3 partition must be large enough for compressed images + extracted trees + XSan
 Recommended disk: 500 GB+ for full multiboot install. MK9 typically ships with 80–320 GB HDD.
 Installer warns if total PIU data exceeds available p3 space and allows user to select a subset.
 
+### IO Ownership
+
+When pumptools is running, it owns PIUIO/LXIO exclusively:
+- `piu-launch.sh` stops `piuio2key.service` before exec'ing pumptools.
+- On pumptools exit, `piuio2key.service` is restarted.
+- pumptools is trusted for all hardware access during PIU sessions.
+
 ### Open Questions
 
 - pumptools per-version config: which hooks are needed for each game version? (to be determined during implementation)
 - Some PIU versions may require specific IO board firmware; pumptools handles this in most cases.
-- PIUIO2Key-Linux + pumptools IO: confirm they don't conflict (both try to own the PIUIO device). May need to disable PIUIO2Key when running PIU legacy.
 
 ## Tested Combinations Matrix (to populate during Phase 1+)
 

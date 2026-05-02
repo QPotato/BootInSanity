@@ -68,32 +68,43 @@ HOOK_BIN="${PUMPTOOLS}/${HOOK_NAME}"
 }
 
 # ---------------------------------------------------------------------------
-# Extract game tree from .img.gz on first run
+# Extract game tree from disk image on first run
 # ---------------------------------------------------------------------------
+IMG="${IMG_GZ%.img.gz}.img"   # pre-decompressed image if available
+
 if [[ ! -d "$GAME_DIR" ]]; then
-    [[ -f "$IMG_GZ" ]] || {
-        echo "ERROR: no extracted game dir and no .img.gz: $IMG_GZ" >&2; exit 1
+    [[ -f "$IMG" || -f "$IMG_GZ" ]] || {
+        echo "ERROR: no extracted game dir, no .img, no .img.gz for $VERSION_NAME" >&2; exit 1
     }
 
     echo "==> First run: extracting $VERSION_NAME from disk image..."
-    echo "    This takes a few minutes. Subsequent launches are instant."
+    echo "    Subsequent launches skip this step."
 
     LOOP_DEV=""
     MOUNT_PT="$(mktemp -d)"
+    OWN_IMG=0
     cleanup_extract() {
         set +e
         [[ -n "$LOOP_DEV" ]] && umount "$MOUNT_PT" 2>/dev/null
         [[ -n "$LOOP_DEV" ]] && losetup -d "$LOOP_DEV" 2>/dev/null
         rmdir "$MOUNT_PT" 2>/dev/null
+        # Remove .img only if we created it from .img.gz (not if user supplied it)
+        [[ "$OWN_IMG" -eq 1 ]] && rm -f "$IMG"
     }
     trap cleanup_extract EXIT
 
-    # Decompress to temp image, loop-mount with partition scanning.
-    TMP_IMG="$(mktemp --suffix=.img)"
-    echo "    Decompressing $IMG_GZ → $TMP_IMG"
-    zcat "$IMG_GZ" > "$TMP_IMG"
+    if [[ -f "$IMG" ]]; then
+        # Use pre-decompressed image directly — fast, no temp file needed.
+        echo "    Using pre-decompressed $IMG"
+    else
+        # Decompress alongside the .img.gz so it lands on the same filesystem
+        # (avoids overflowing /tmp on a small root partition).
+        echo "    Decompressing $IMG_GZ → $IMG (this takes a few minutes)"
+        zcat "$IMG_GZ" > "$IMG"
+        OWN_IMG=1
+    fi
 
-    LOOP_DEV="$(losetup --find --partscan --show "$TMP_IMG")"
+    LOOP_DEV="$(losetup --find --partscan --show "$IMG")"
     echo "    Loop device: $LOOP_DEV"
 
     # Find first Linux partition (type 83).
@@ -118,8 +129,8 @@ if [[ ! -d "$GAME_DIR" ]]; then
 
     umount "$MOUNT_PT"
     losetup -d "$LOOP_DEV"; LOOP_DEV=""
-    rm -f "$TMP_IMG"
     rmdir "$MOUNT_PT"
+    OWN_IMG=0   # keep .img even if we created it — useful for re-extraction
     trap - EXIT
     echo "    Extraction complete."
 fi

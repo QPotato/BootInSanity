@@ -416,6 +416,143 @@ kernel/usbhid-1ms.patch porting effort: **low**.
 - Trixie ships 6.1+ or 6.x. hid-core.c structure unchanged fundamentally; offset adjustments only.
 - Revalidate on first trixie test cabinet but no deep rework expected.
 
+## PIU Legacy Multiboot (pumptools)
+
+### Concept
+
+Beyond XSanity/Xlibre, the cabinet can run original Pump It Up game versions (Extra, Premiere 2, NX Absolute, Fiesta EX, …) using **pumptools** — a community compatibility layer that intercepts arcade hardware calls and runs PIU binaries natively on Linux (no VM/hypervisor). BootInSanity manages storage, discovery, and launch.
+
+User-supplied `.img.gz` disk images (full arcade HDD backups) are stored on the data partition. On first launch per version, BootInSanity extracts the game tree. pumptools runs the game with host GPU + IO.
+
+### Why pumptools (not QEMU)
+
+| | pumptools | QEMU/KVM |
+|---|---|---|
+| **Performance** | Native (host CPU + GPU) | Hypervisor overhead; GPU passthrough needed for full perf |
+| **GPU** | NVIDIA driver (same as XSanity) | virtio-gpu software render (adequate for old games, not ideal) |
+| **IO (PIUIO/LXIO)** | pumptools handles directly | USB passthrough (works but fragile) |
+| **Complexity** | Single LD_PRELOAD hook layer | Full VM config per version |
+| **VT-x requirement** | None | Required for KVM (Celeron E3400 lacks VT-x) |
+
+### PIU Version Storage
+
+All PIU data lives under `/mnt/piu/` (subdirectory of p3, same partition as XSanity):
+
+```
+/mnt/piu/
+├── 07_Extra.img.gz              ← compressed HDD image (user-supplied)
+├── 07_Extra/                    ← extracted game tree (auto-created on first launch)
+│   ├── game/                    ← game binaries + assets
+│   └── .pumptools/              ← pumptools config + hooks per version
+├── 11_The_Premiere_2.img.gz
+├── 11_The_Premiere_2/
+├── 21_NX_Absolute.img.gz
+├── 21_NX_Absolute/
+└── ...                          ← any future versions auto-detected
+```
+
+### Naming Convention
+
+`{2-digit-number}_{Name}.img.gz` — arbitrary number prefix + underscore + version name.
+- Number used for sort order in GRUB/i3 menus.
+- No hardcoded version list anywhere in the build or runtime.
+- Any `.img.gz` matching `[0-9][0-9]_*.img.gz` in `/mnt/piu/` is auto-discovered.
+
+### First-Launch Extraction
+
+On first launch of a PIU version (`.img.gz` present, no extracted dir):
+
+1. Show full-screen progress: "Preparing PIU {Name} for first run…"
+2. Loop-mount disk image: `zcat {version}.img.gz | losetup --find --partscan --read-only --show /dev/stdin`
+3. Mount game partition from loop device (detected via `blkid`/`lsblk`).
+4. `rsync` game tree to `{version}/game/`.
+5. Unmount + detach loop.
+6. Write pumptools config to `{version}/.pumptools/`.
+7. Launch game.
+
+Subsequent launches: skip extraction, go straight to pumptools.
+
+### Launch Script (`/opt/bootinsanity/piu-launch.sh`)
+
+```bash
+#!/bin/bash
+VERSION_DIR="$1"   # e.g. /mnt/piu/07_Extra
+# ... validate extracted tree exists, extract if not, then:
+exec pumptools run --game "$VERSION_DIR/game" --config "$VERSION_DIR/.pumptools"
+```
+
+### Discovery and Menu Generation (`/opt/bootinsanity/piu-discover.sh`)
+
+Scans `/mnt/piu/` for `[0-9][0-9]_*.img.gz`:
+- Generates `/boot/grub/piu-versions.cfg` (GRUB include with one `menuentry` per version).
+- Updates i3 keybind config (or a runtime menu script) with discovered versions.
+- Run at: first boot (via `firstboot.sh`), and any time user adds a version + triggers rescan.
+
+### GRUB Boot Menu
+
+```
+┌─────────────────────────────────────┐
+│  BootInSanity                       │  ← default (XSanity / Xlibre)
+│  PIU Extra (07)                     │
+│  PIU The Premiere 2 (11)            │
+│  PIU NX Absolute (21)               │
+│  PIU Fiesta EX (25)                 │
+│  [System Shell]                     │
+└─────────────────────────────────────┘
+```
+
+GRUB menu dynamically generated at each boot from discovered versions. No manual GRUB editing needed.
+
+### i3 / In-Session PIU Picker
+
+`Win+G` → full-screen picker (rofi or custom script) showing discovered PIU versions.
+Select → kills XSanity crash-loop, launches `piu-launch.sh {version}`.
+PIU exit → returns to XSanity crash-loop.
+
+### Adding New Versions (Post-Install)
+
+No rebuild or reflash required:
+
+```bash
+# From user's machine:
+scp 26_Prime.img.gz pump@<mk9-ip>:/mnt/piu/
+
+# On cabinet (or via SSH):
+sudo /opt/bootinsanity/piu-discover.sh
+sudo update-grub
+```
+
+Done. New version appears in GRUB and Win+G picker on next boot.
+
+### Build-Time Handling
+
+`build.sh` detects `PIU/*.img.gz` in the source directory:
+- If present: copies compressed images to `p3:/mnt/piu/` during install (no extraction at build time).
+- If absent: skips silently. Install proceeds as XSanity-only.
+- Disk sizing: install.sh warns if total compressed PIU size exceeds estimated remaining p3 space.
+
+PIU images are **never** committed to the git repo (`.gitignore`: `PIU/`). User-supplied like XSanity.
+
+### Disk Space Estimates
+
+| Version | Compressed | Est. Extracted |
+|---|---|---|
+| 07 Extra | ~4 GB | ~7–10 GB |
+| 11 Premiere 2 | ~4 GB | ~7–10 GB |
+| 21 NX Absolute | ~21 GB | ~40–60 GB |
+| 25 Fiesta EX | ~27 GB | ~50–70 GB |
+| **All 4 (compressed)** | ~56 GB | — |
+
+p3 partition must be large enough for compressed images + extracted trees + XSanity + Songs.
+Recommended disk: 500 GB+ for full multiboot install. MK9 typically ships with 80–320 GB HDD.
+Installer warns if total PIU data exceeds available p3 space and allows user to select a subset.
+
+### Open Questions
+
+- pumptools per-version config: which hooks are needed for each game version? (to be determined during implementation)
+- Some PIU versions may require specific IO board firmware; pumptools handles this in most cases.
+- PIUIO2Key-Linux + pumptools IO: confirm they don't conflict (both try to own the PIUIO device). May need to disable PIUIO2Key when running PIU legacy.
+
 ## Tested Combinations Matrix (to populate during Phase 1+)
 
 | BootInSanity | Debian ISO | XSanity | MK9 | GPU | Status |

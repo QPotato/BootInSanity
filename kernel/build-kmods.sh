@@ -22,11 +22,14 @@ apt-get install -y --no-install-recommends \
     python3 \
     git ca-certificates
 
-# linux-source-5.10 ships a tarball at /usr/src/linux-source-5.10.tar.xz that
-# the previous build's cleanup wipes. Remove any stale tarball so the version
-# always matches current repo before installing fresh.
-rm -f /usr/src/linux-source-5.10.tar.xz
-apt-get install -y --no-install-recommends linux-source-5.10
+# linux-source-5.10 ships a tarball at /usr/src/linux-source-5.10.tar.xz.
+# On cached chroot rebuilds dpkg thinks the package is installed but the
+# tarball was cleaned up. apt-get install is then a no-op. Use apt-get download
+# to force re-fetch regardless of dpkg state, then dpkg -x to extract.
+rm -f /usr/src/linux-source-5.10.tar.xz /tmp/linux-source-5.10_*.deb
+( cd /tmp && apt-get download linux-source-5.10 )
+dpkg -x /tmp/linux-source-5.10_*.deb /
+rm -f /tmp/linux-source-5.10_*.deb
 
 # Re-detect KVER after the upgrade so we build for the kernel that ships.
 KVER="$(ls -1 /boot/ | grep '^vmlinuz-' | sort -V | tail -1 | sed 's|^vmlinuz-||')"

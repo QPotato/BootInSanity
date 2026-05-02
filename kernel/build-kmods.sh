@@ -23,9 +23,10 @@ apt-get install -y --no-install-recommends \
     git ca-certificates
 
 # linux-source-5.10 ships a tarball at /usr/src/linux-source-5.10.tar.xz that
-# the previous build's cleanup wipes. Force reinstall so the tarball is
-# present even on cached chroot rebuilds.
-apt-get install -y --reinstall --no-install-recommends linux-source-5.10
+# the previous build's cleanup wipes. Remove any stale tarball so the version
+# always matches current repo before installing fresh.
+rm -f /usr/src/linux-source-5.10.tar.xz
+apt-get install -y --no-install-recommends linux-source-5.10
 
 # Re-detect KVER after the upgrade so we build for the kernel that ships.
 KVER="$(ls -1 /boot/ | grep '^vmlinuz-' | sort -V | tail -1 | sed 's|^vmlinuz-||')"

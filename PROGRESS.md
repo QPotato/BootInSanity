@@ -16,8 +16,11 @@ Last updated: 2026-05-03
 
 ### trixie-xlibre branch (Debian 13, next-gen)
 - Phase 0+1 ✅ — XSanity boots on Debian 13 trixie (kernel 6.12.73), 1280x720, audio + input working. Validated in QEMU 2026-05-03.
-- Phase 2 🟡 — Installer not yet re-validated on trixie.
-- Phase 3 🟡 — usbhid 1ms patch needs 6.x port; PIUIO2Key-Linux service not yet integrated; NVIDIA community pkgs TBD.
+- Phase 2 ✅ — Installer validated (user-run). Installed system boots to XSanity. 2026-05-03.
+- Phase 3a ✅ — PIUIO2Key-Linux service installed + enabled; pumptools hooks present; python3-usb OK. Validated in QEMU 2026-05-03.
+- Phase 3b ✅ — usbhid.ko built with elsepoll param, vermagic matches 6.12.85. Validated in QEMU 2026-05-03.
+- Phase 3c 🔴 — NVIDIA community packages not yet implemented (GPU=nouveau only on trixie).
+- Phase 4 🟡 — System mode keybinds committed; Win+F4 untestable in QEMU (host WM intercepts Super key). Pending hardware validation.
 
 Build pipeline working end-to-end on both branches. Dockerized, reproducible.
 
@@ -260,7 +263,27 @@ The game process IS running (11% CPU, Dl/Rl state) — confirmed running, not cr
    launch.sh (the existing autostart). Add `DISPLAY=:0 XAUTHORITY=...` export.
 4. **`xhost +local:`** must be called before piu-launch.sh runs as root.
 
-## Phase 4–6 — System mode, updates, polish, Saninet  ⏸ NOT STARTED
+## Phase 4 — System mode  🟡 COMMITTED, PENDING HARDWARE TEST
+
+Win+F4 escape hatch and Win+key shortcuts are implemented in i3 config +
+system-mode scripts. Cannot verify in QEMU: the host window manager intercepts
+the Super (Win) key before it reaches the guest.
+
+**Known Win+F4 QEMU limitation**: not a bug — Super key interception is a QEMU
+GTK display limitation. Bindings will work on real hardware.
+
+### Hardware test checklist (Phase 4)
+- [ ] Win+F4 → drops to desktop (terminal opens with crash log, XSanity killed)
+- [ ] Win+Enter → new lxterminal opens
+- [ ] Win+V → alsamixer opens in terminal
+- [ ] Win+B → system reboots
+- [ ] Win+P → system powers off
+- [ ] Win+M → pcmanfm opens at /media/pump
+- [ ] Win+R → reset-xsanity dialog appears, confirming deletes Save/
+- [ ] Win+X → expand-p3 runs (noop if partition already full); df shows correct size
+- [ ] 3× XSanity crash → system mode entered automatically (not a hang)
+
+## Phase 5–6 — Updates, polish, Saninet  ⏸ NOT STARTED
 
 Per PLAN.md.
 

@@ -307,6 +307,37 @@ installed system (internal SSD). Likely not a real bug.
 - [ ] Win+R → reset XSanity settings
 - [ ] Win+X → expand data partition
 
+## PIU Legacy Game Images — Analysis
+
+### 25_Fiesta_EX (fexhook)
+
+Inspected raw arcade HDD image. Layout is NOT pumptools-style:
+
+| File | Size | Type | Role |
+|---|---|---|---|
+| `/x` | 23 MB | ELF i386 SO, SONAME=libGLcore.so.1 | Bundled NVIDIA GL core |
+| `/p` | 8.8 MB | encrypted binary | Game binary / loader |
+| `/u` | 8.2 MB | encrypted binary | Unknown component |
+| `/i` | 4.5 MB | encrypted binary | Unknown component |
+| `/n` | 0 B | empty | Placeholder |
+| `/game/_00000.BIN` | 26.8 GB | binary | Game content archive |
+
+**Audio**: obfuscated strings in `/p` contain `pcM`/`dmiX` → uses ALSA `dmix`.
+Consistent with 07_Extra (`patch.sound.device=dmix`). Our fix applies.
+
+**GPU**: FEX ships libGLcore.so.1 bundled (`/x`). Still needs NVIDIA kernel
+module + GLX/display on host. GPU=nouveau will NOT work for PIU games.
+
+**piu-launch.sh incompatibility**: extraction looks for `piueb` inside the
+mounted image — FEX has none. Would fail with "piueb not found in image".
+FEX needs a separate extraction path: copy `/p`, `/u`, `/i`, `/x`, `/game/`
+to game dir, then inject pumptools' `piueb` + `fexhook.so` + `hook.conf`.
+This is a future task (Phase 3c / PIU multiboot).
+
+### 07_Extra (exchook)
+Already extracted. Uses `piueb`-style layout. Confirmed `dmix` in hook.conf.
+07_Extra does NOT run on MK9 (too old, unsupported hardware).
+
 ## Phase 5–6 — Updates, polish, Saninet  ⏸ NOT STARTED
 
 Per PLAN.md.

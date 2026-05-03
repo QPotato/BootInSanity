@@ -291,7 +291,7 @@ chroot_run update-locale LANG=en_US.UTF-8
 
 echo "==> [4b/9] Installing pumptools (PIU legacy game compatibility layer)"
 PUMPTOOLS_VER="1.14"
-PUMPTOOLS_URL="https://github.com/pumpitupdev/pumptools/releases/download/v${PUMPTOOLS_VER}/pumptools.zip"
+PUMPTOOLS_URL="https://github.com/pumpitupdev/pumptools/releases/download/latest/pumptools-${PUMPTOOLS_VER}.zip"
 PUMPTOOLS_DEST="${CHROOT}/opt/pumptools"
 mkdir -p "$PUMPTOOLS_DEST"
 
@@ -305,11 +305,12 @@ chroot_run apt-get install -y --no-install-recommends \
     libcurl4:i386 || true   # libconfig++ i386 pulled in if available
 
 # Download pumptools prebuilt release into chroot.
-if curl -fsSL --max-time 60 -o "${PUMPTOOLS_DEST}/pumptools.zip" "$PUMPTOOLS_URL"; then
+if curl -fsSL --max-time 120 -o "${PUMPTOOLS_DEST}/pumptools.zip" "$PUMPTOOLS_URL"; then
     chroot_run bash -c "cd /opt/pumptools && unzip -q pumptools.zip && rm pumptools.zip"
     echo "    pumptools v${PUMPTOOLS_VER} installed at /opt/pumptools"
 else
     echo "    WARN: pumptools download failed — PIU launch will not work" >&2
+    echo "    URL tried: $PUMPTOOLS_URL" >&2
 fi
 
 echo "==> [4c/9] Building out-of-tree kernel modules"

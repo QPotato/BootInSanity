@@ -15,6 +15,10 @@ NO_CACHE    ?= 0
 # Make's $(abspath) mangling paths that contain spaces (e.g. "XSanity 0.96.0/").
 INPUTS_DIR := $(ROOT)/work/inputs
 
+# Unset snap-injected library paths so system QEMU uses system GTK/GDK libs.
+unexport SNAP_LIBRARY_PATH GTK_PATH GTK_EXE_PREFIX GDK_PIXBUF_MODULE_FILE \
+         GDK_PIXBUF_MODULEDIR GIO_MODULE_DIR GTK_IM_MODULE_FILE LOCPATH
+
 DOCKER_RUN = docker run --rm --privileged \
              -v "$(ROOT)":/work \
              $(if $(DEBIAN_ISO),-v "$(realpath $(DEBIAN_ISO))":/inputs/debian.iso:ro) \

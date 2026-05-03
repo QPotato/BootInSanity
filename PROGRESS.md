@@ -274,10 +274,11 @@ GTK display limitation. Bindings will work on real hardware.
 
 ### Hardware test results (MK9, 2026-05-03, live mode)
 
-**Panel input** ✅ — panels produce correct keyboard input (`qeszc` P1,
-`79513` P2 — classic ITG/StepMania layout). Source: **hardware USB keyboard
-encoder** built into MK9, not piuio2key (service was masked for this boot).
-piuio2key is still needed for pumptools PIU game sessions (raw PIUIO access).
+**Panel input via PIUIO2Key-Linux** ✅ — `piu_bridge.py` ran successfully,
+mapped PIUIO sensor data → uinput keyboard events (`qeszc` P1, `79513` P2 —
+PIUIO2Key default mapping). `systemd.mask=piuio2key.service` kernel param is
+likely not valid; service ran anyway. First-boot printk flood = piuio2key
+crashing before it could open the PIUIO device; second boot it succeeded.
 
 **piuio2key.service crash loop** ❌ — floods printk at boot; system appears
 stuck. Workaround: add `systemd.mask=piuio2key.service` to kernel cmdline.

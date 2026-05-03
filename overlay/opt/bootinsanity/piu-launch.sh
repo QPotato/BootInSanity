@@ -1,14 +1,12 @@
 #!/bin/bash
-# Launch a PIU legacy game version via pumptools.
+# Launch a PIU legacy game version via pumptools piueb.
 # Usage: piu-launch.sh <version-dir>
 #   version-dir: path to directory named XX_Name (e.g. /mnt/piu/07_Extra)
-#                Must contain XX_Name.img.gz alongside if not yet extracted.
+#                Must contain piueb + piu + game/ + lib/ + hook.so + hook.conf.
+#                If absent, first-run extraction from XX_Name.img[.gz] is attempted.
 #
-# Hook mapping: each version dir may contain a .pumptools/hook-name file
-# specifying which pumptools hook to use. Defaults listed in HOOK_MAP below.
-#
-# IO mode: controlled by .pumptools/hook.conf. Default: keyboard (QEMU-safe).
-# On real hardware with PIUIO present, override InputImpl in hook.conf.
+# Hook source: /opt/pumptools/<hookname>.so — see HOOK_MAP below.
+# IO mode: controlled by hook.conf. Default (generated): keyboard (QEMU-safe).
 
 set -euo pipefail
 
@@ -17,89 +15,70 @@ PIUIO2KEY_SVC=piuio2key.service
 
 VERSION_DIR="${1:-}"
 [[ -n "$VERSION_DIR" ]] || { echo "Usage: $0 <version-dir>" >&2; exit 1; }
-[[ -d "$VERSION_DIR" || -f "${VERSION_DIR}.img.gz" ]] || {
-    echo "ERROR: $VERSION_DIR not found" >&2; exit 1
-}
 
 VERSION_NAME="$(basename "$VERSION_DIR")"
 IMG_GZ="$(dirname "$VERSION_DIR")/${VERSION_NAME}.img.gz"
-PT_DIR="${VERSION_DIR}/.pumptools"
-GAME_DIR="${VERSION_DIR}/game"
+IMG="${IMG_GZ%.img.gz}.img"
 
 # ---------------------------------------------------------------------------
-# Hook selection — map version name prefix to pumptools hook binary/dir
+# Hook selection — map version name prefix to pumptools hook .so
 # ---------------------------------------------------------------------------
 declare -A HOOK_MAP=(
-    ["07"]="exchook"     # PIU Extra / Exceed series
+    ["07"]="exchook"
     ["08"]="exchook"
     ["09"]="exchook"
     ["10"]="exchook"
-    ["11"]="mk3hook"     # Premiere 2 (MK3 Linux port)
+    ["11"]="mk3hook"
     ["12"]="mk3hook"
     ["13"]="mk3hook"
-    ["20"]="nxhook"      # NX
-    ["21"]="nxahook"     # NX Absolute
-    ["22"]="nx2hook"     # NX2
-    ["23"]="prohook"     # Pro
-    ["24"]="pro2hook"    # Pro 2
-    ["25"]="fexhook"     # Fiesta EX
-    ["26"]="primehook"   # Prime (v122)
+    ["20"]="nxhook"
+    ["21"]="nxahook"
+    ["22"]="nx2hook"
+    ["23"]="prohook"
+    ["24"]="pro2hook"
+    ["25"]="fexhook"
+    ["26"]="primehook"
 )
 
 PREFIX="${VERSION_NAME:0:2}"
 HOOK_NAME="${HOOK_MAP[$PREFIX]:-}"
 
-# Allow override via .pumptools/hook-name file
-if [[ -f "${PT_DIR}/hook-name" ]]; then
-    HOOK_NAME="$(cat "${PT_DIR}/hook-name")"
-fi
-
 [[ -n "$HOOK_NAME" ]] || {
     echo "ERROR: no hook mapping for version prefix '$PREFIX' in $VERSION_NAME" >&2
-    echo "       Create ${PT_DIR}/hook-name with the hook name (e.g. fexhook)" >&2
+    echo "       Create ${VERSION_DIR}/hook.so manually (symlink to the right pumptools .so)" >&2
     exit 1
 }
 
-HOOK_BIN="${PUMPTOOLS}/${HOOK_NAME}"
-[[ -f "$HOOK_BIN" || -d "$HOOK_BIN" ]] || {
-    echo "ERROR: pumptools hook not found: $HOOK_BIN" >&2
-    echo "       Is pumptools installed at $PUMPTOOLS?" >&2
+HOOK_SO="${PUMPTOOLS}/${HOOK_NAME}.so"
+[[ -f "$HOOK_SO" ]] || {
+    echo "ERROR: pumptools hook not found: $HOOK_SO" >&2
     exit 1
 }
 
 # ---------------------------------------------------------------------------
-# Extract game tree from disk image on first run
+# First-run extraction: rsync piueb game dir from disk image
 # ---------------------------------------------------------------------------
-IMG="${IMG_GZ%.img.gz}.img"   # pre-decompressed image if available
-
-if [[ ! -d "$GAME_DIR" ]]; then
+if [[ ! -f "${VERSION_DIR}/piu" ]]; then
     [[ -f "$IMG" || -f "$IMG_GZ" ]] || {
-        echo "ERROR: no extracted game dir, no .img, no .img.gz for $VERSION_NAME" >&2; exit 1
+        echo "ERROR: no game dir, no .img, no .img.gz for $VERSION_NAME" >&2; exit 1
     }
 
     echo "==> First run: extracting $VERSION_NAME from disk image..."
-    echo "    Subsequent launches skip this step."
 
     LOOP_DEV=""
     MOUNT_PT="$(mktemp -d)"
     OWN_IMG=0
     cleanup_extract() {
         set +e
-        [[ -n "$LOOP_DEV" ]] && umount "$MOUNT_PT" 2>/dev/null
-        [[ -n "$LOOP_DEV" ]] && losetup -d "$LOOP_DEV" 2>/dev/null
-        rmdir "$MOUNT_PT" 2>/dev/null
-        # Remove .img only if we created it from .img.gz (not if user supplied it)
+        [[ -n "$LOOP_DEV" ]] && umount "$MOUNT_PT" 2>/dev/null; true
+        [[ -n "$LOOP_DEV" ]] && losetup -d "$LOOP_DEV" 2>/dev/null; true
+        rmdir "$MOUNT_PT" 2>/dev/null; true
         [[ "$OWN_IMG" -eq 1 ]] && rm -f "$IMG"
     }
     trap cleanup_extract EXIT
 
-    if [[ -f "$IMG" ]]; then
-        # Use pre-decompressed image directly — fast, no temp file needed.
-        echo "    Using pre-decompressed $IMG"
-    else
-        # Decompress alongside the .img.gz so it lands on the same filesystem
-        # (avoids overflowing /tmp on a small root partition).
-        echo "    Decompressing $IMG_GZ → $IMG (this takes a few minutes)"
+    if [[ ! -f "$IMG" ]]; then
+        echo "    Decompressing $IMG_GZ → $IMG"
         zcat "$IMG_GZ" > "$IMG"
         OWN_IMG=1
     fi
@@ -107,93 +86,65 @@ if [[ ! -d "$GAME_DIR" ]]; then
     LOOP_DEV="$(losetup --find --partscan --show "$IMG")"
     echo "    Loop device: $LOOP_DEV"
 
-    # Find first Linux partition (type 83).
     GAME_PART=""
     for part in "${LOOP_DEV}p"*; do
         [[ -b "$part" ]] || continue
         TYPE="$(blkid -o value -s TYPE "$part" 2>/dev/null || true)"
-        [[ "$TYPE" == ext2 || "$TYPE" == ext3 || "$TYPE" == ext4 ]] && {
-            GAME_PART="$part"; break
-        }
+        [[ "$TYPE" == ext2 || "$TYPE" == ext3 || "$TYPE" == ext4 ]] && { GAME_PART="$part"; break; }
     done
-    [[ -n "$GAME_PART" ]] || {
-        echo "ERROR: no ext2/3/4 partition found in $IMG_GZ" >&2; exit 1
-    }
+    [[ -n "$GAME_PART" ]] || { echo "ERROR: no ext2/3/4 partition in $IMG" >&2; exit 1; }
 
-    echo "    Mounting $GAME_PART → $MOUNT_PT"
-    mount -o ro "$GAME_PART" "$MOUNT_PT"
+    mount -o ro,noload "$GAME_PART" "$MOUNT_PT"
 
-    mkdir -p "$GAME_DIR"
-    echo "    Copying game tree → $GAME_DIR"
-    rsync -a --info=progress2 "${MOUNT_PT}/" "${GAME_DIR}/"
+    # Find the piueb launcher inside the image to locate the game dir
+    PIUEB_IN_IMG="$(find "$MOUNT_PT" -name 'piueb' -maxdepth 6 2>/dev/null | head -1)"
+    [[ -n "$PIUEB_IN_IMG" ]] || { echo "ERROR: piueb not found in image" >&2; exit 1; }
+    GAME_SRC="$(dirname "$PIUEB_IN_IMG")"
 
-    umount "$MOUNT_PT"
-    losetup -d "$LOOP_DEV"; LOOP_DEV=""
+    echo "    Found game dir: $GAME_SRC"
+    mkdir -p "$VERSION_DIR"
+    rsync -a --no-owner --no-group --info=progress2 "${GAME_SRC}/" "${VERSION_DIR}/"
+
+    umount "$MOUNT_PT"; LOOP_DEV=""
     rmdir "$MOUNT_PT"
-    OWN_IMG=0   # keep .img even if we created it — useful for re-extraction
     trap - EXIT
     echo "    Extraction complete."
 fi
 
 # ---------------------------------------------------------------------------
-# Set up pumptools working directory (.pumptools/)
+# Ensure hook.so points to our pumptools build
 # ---------------------------------------------------------------------------
-mkdir -p "$PT_DIR"
-
-# Write default hook.conf if absent. Keyboard IO for QEMU-safe testing.
-# On real hardware, change InputImpl to piuio (hardware) or joystick.
-if [[ ! -f "${PT_DIR}/hook.conf" ]]; then
-    cat > "${PT_DIR}/hook.conf" <<'HOOKCONF'
-# pumptools hook configuration — generated by piu-launch.sh
-# IO mode: keyboard = X11 keyboard input (QEMU testing, no PIUIO required)
-#          piuio    = real PIUIO/LXIO hardware
-#          joystick = Linux joystick API (gamepad)
-io = {
-    # Options: keyboard, piuio, joystick
-    piuio = {
-        impl = "keyboard"
-    }
-}
-patch = {
-    hook = {
-        # Intercept keyboard input in the game's main loop.
-        main_loop = {
-            x11_input_handler = true
-        }
-    }
-}
-HOOKCONF
-    echo "    Created default hook.conf (keyboard IO mode)"
+HOOK_DEST="${VERSION_DIR}/hook.so"
+# Replace with symlink to our pumptools hook if absent or stale
+if [[ ! -L "$HOOK_DEST" ]] || [[ "$(readlink "$HOOK_DEST")" != "$HOOK_SO" ]]; then
+    ln -sf "$HOOK_SO" "$HOOK_DEST"
+    echo "==> Linked ${HOOK_NAME}.so → hook.so"
 fi
 
-# Symlink hook binary next to game dir so pumptools finds it.
-HOOK_LINK="${VERSION_DIR}/hook"
-[[ -e "$HOOK_LINK" ]] || ln -s "$HOOK_BIN" "$HOOK_LINK"
+# Ensure piueb is present (may not be in images that predate the piueb workflow)
+if [[ ! -f "${VERSION_DIR}/piueb" ]]; then
+    cp "$PUMPTOOLS/piueb" "${VERSION_DIR}/piueb"
+    chmod +x "${VERSION_DIR}/piueb"
+fi
 
 # ---------------------------------------------------------------------------
 # Stop PIUIO2Key-Linux — pumptools owns IO from here
 # ---------------------------------------------------------------------------
+PIUIO2KEY_WAS_RUNNING=0
 if systemctl is-active --quiet "$PIUIO2KEY_SVC" 2>/dev/null; then
     echo "==> Stopping $PIUIO2KEY_SVC (pumptools takes IO ownership)"
     systemctl stop "$PIUIO2KEY_SVC"
     PIUIO2KEY_WAS_RUNNING=1
-else
-    PIUIO2KEY_WAS_RUNNING=0
 fi
 
 restart_piuio2key() {
-    if [[ "$PIUIO2KEY_WAS_RUNNING" -eq 1 ]]; then
-        echo "==> Restarting $PIUIO2KEY_SVC"
-        systemctl start "$PIUIO2KEY_SVC" || true
-    fi
+    [[ "$PIUIO2KEY_WAS_RUNNING" -eq 1 ]] && systemctl start "$PIUIO2KEY_SVC" || true
 }
 trap restart_piuio2key EXIT
 
 # ---------------------------------------------------------------------------
-# Launch game via pumptools
+# Launch via piueb (must run as root — piueb enforces this)
 # ---------------------------------------------------------------------------
-echo "==> Launching $VERSION_NAME via pumptools ($HOOK_NAME)"
+echo "==> Launching $VERSION_NAME (hook: ${HOOK_NAME})"
 cd "$VERSION_DIR"
-exec "${HOOK_LINK}/hook" \
-    --game-data-dir "$GAME_DIR" \
-    --hook-config-file "${PT_DIR}/hook.conf"
+exec ./piueb run

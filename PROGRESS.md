@@ -272,16 +272,38 @@ the Super (Win) key before it reaches the guest.
 **Known Win+F4 QEMU limitation**: not a bug — Super key interception is a QEMU
 GTK display limitation. Bindings will work on real hardware.
 
-### Hardware test checklist (Phase 4)
-- [ ] Win+F4 → drops to desktop (terminal opens with crash log, XSanity killed)
-- [ ] Win+Enter → new lxterminal opens
-- [ ] Win+V → alsamixer opens in terminal
-- [ ] Win+B → system reboots
-- [ ] Win+P → system powers off
-- [ ] Win+M → pcmanfm opens at /media/pump
-- [ ] Win+R → reset-xsanity dialog appears, confirming deletes Save/
-- [ ] Win+X → expand-p3 runs (noop if partition already full); df shows correct size
-- [ ] 3× XSanity crash → system mode entered automatically (not a hang)
+### Hardware test results (MK9, 2026-05-03, live mode)
+
+**PIUIO / panel input** ✅ — stepping on panels produces correct keyboard
+input in terminal. Panels work via usbhid directly (no piuio2key needed for
+XSanity). piuio2key.service is only required for pumptools PIU game sessions.
+
+**piuio2key.service crash loop** ❌ — floods printk at boot; system appears
+stuck. Workaround: add `systemd.mask=piuio2key.service` to kernel cmdline.
+Root cause: usbhid claims the PIUIO USB device before pyusb can open it.
+Fix needed: udev rule to prevent usbhid from binding to PIUIO (0547:1002).
+
+**Phase 4 system mode** ✅ — Win+F4 drops to desktop with keybind menu.
+**3-crash fallback** ✅ — auto-entered system mode after 3 XSanity crashes.
+
+**Audio** ❌ — XSanity fails: `Couldn't find a sound driver that works`.
+Hardware: Intel HDA ALC662 rev1, card 0 device 0.
+`speaker-test` returns `Input/output error` (even with plughw:0).
+PIU 07_Extra hook.conf uses `patch.sound.device=dmix` — trying dmix for
+XSanity. Investigating alsactl init + amixer unmute path.
+
+**GPU/display** — not yet tested (live mode, nouveau).
+
+### Phase 4 keybind checklist
+- ✅ Win+F4 → system mode (confirmed on hardware)
+- ✅ 3× crash → system mode auto-enter
+- [ ] Win+Enter → new lxterminal
+- [ ] Win+V → alsamixer
+- [ ] Win+B → reboot
+- [ ] Win+P → power off
+- [ ] Win+M → pcmanfm at /media/pump
+- [ ] Win+R → reset XSanity settings
+- [ ] Win+X → expand data partition
 
 ## Phase 5–6 — Updates, polish, Saninet  ⏸ NOT STARTED
 

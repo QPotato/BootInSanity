@@ -274,9 +274,10 @@ GTK display limitation. Bindings will work on real hardware.
 
 ### Hardware test results (MK9, 2026-05-03, live mode)
 
-**PIUIO / panel input** ✅ — stepping on panels produces correct keyboard
-input in terminal. Panels work via usbhid directly (no piuio2key needed for
-XSanity). piuio2key.service is only required for pumptools PIU game sessions.
+**Panel input** ✅ — panels produce correct keyboard input (`qeszc` P1,
+`79513` P2 — classic ITG/StepMania layout). Source: **hardware USB keyboard
+encoder** built into MK9, not piuio2key (service was masked for this boot).
+piuio2key is still needed for pumptools PIU game sessions (raw PIUIO access).
 
 **piuio2key.service crash loop** ❌ — floods printk at boot; system appears
 stuck. Workaround: add `systemd.mask=piuio2key.service` to kernel cmdline.
@@ -286,11 +287,11 @@ Fix needed: udev rule to prevent usbhid from binding to PIUIO (0547:1002).
 **Phase 4 system mode** ✅ — Win+F4 drops to desktop with keybind menu.
 **3-crash fallback** ✅ — auto-entered system mode after 3 XSanity crashes.
 
-**Audio** ❌ — XSanity fails: `Couldn't find a sound driver that works`.
-Hardware: Intel HDA ALC662 rev1, card 0 device 0.
-`speaker-test` returns `Input/output error` (even with plughw:0).
-PIU 07_Extra hook.conf uses `patch.sound.device=dmix` — trying dmix for
-XSanity. Investigating alsactl init + amixer unmute path.
+**Audio** ⚠️ INCONCLUSIVE — `sudo` binary itself returned `Input/output
+error` (USB read error off live squashfs, not a software audio issue).
+`speaker-test -D dmix` also I/O error — same root cause.
+`aplay -L` shows `dmix:CARD=Intel,DEV=0` exists. Audio must be retested on
+installed system (internal SSD). Likely not a real bug.
 
 **GPU/display** — not yet tested (live mode, nouveau).
 

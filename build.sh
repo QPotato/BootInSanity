@@ -306,7 +306,10 @@ chroot_run apt-get install -y --no-install-recommends \
 
 # Download pumptools prebuilt release into chroot.
 if curl -fsSL --max-time 120 -o "${PUMPTOOLS_DEST}/pumptools.zip" "$PUMPTOOLS_URL"; then
-    chroot_run bash -c "cd /opt/pumptools && unzip -q pumptools.zip && rm pumptools.zip"
+    # Outer zip extracts hook zips + piueb + docs. Unzip each hook zip so
+    # exchook.so, fexhook.so etc. land flat in /opt/pumptools/.
+    chroot_run bash -c "cd /opt/pumptools && unzip -qo pumptools.zip && rm pumptools.zip && \
+        for z in *.zip; do unzip -qo \"\$z\"; done && rm -f *.zip"
     echo "    pumptools v${PUMPTOOLS_VER} installed at /opt/pumptools"
 else
     echo "    WARN: pumptools download failed — PIU launch will not work" >&2

@@ -7,13 +7,19 @@ Last updated: 2026-05-03
 
 ## TL;DR
 
+### main branch (bullseye, MK9 target)
 - Phase 0 ✅ — bare Debian 11 live ISO boots in QEMU.
 - Phase 1 ✅ — XSanity launches at 1280x720, keyboard input + audio + SSH working in QEMU.
 - Phase 2 ✅ — Installer wraps live ISO. Clean Install partitions target disk (256M boot + 8G rootfs + rest data), unsquashfs, GRUB hybrid BIOS+EFI install. Installed system boots from disk → autologin → X → XSanity.
-- Phase 3a ✅ — Kernel modules: patched usbhid (1 ms polling, kbpoll/jspoll/elsepoll/mousepoll all =1) + djpohly/piuio (Andamiro PIUIO → Linux input). Both built from source against bullseye linux-image-amd64 5.10.0-39, installed to /lib/modules/$KVER/{updates,extra}, initramfs rebuilt so patched usbhid loads at early boot. ITG udev rules (PIUIO/LXIO/MK9IO/Minimaid/PacDrive/ITGIO/Snek/STAC) ported. Validated in QEMU.
-- Phase 3b 🟡 — NVIDIA legacy driver bake-in via `GPU=340|390|470` build flag. Wired but untested in QEMU (no NVIDIA hw). Pending real-MK9 validation.
-- Build pipeline working end-to-end: Dockerized, CLI + interactive,
-  reproducible, user supplies Debian DVD ISO + XSanity dir.
+- Phase 3a ✅ — Kernel modules: patched usbhid (1 ms polling) + djpohly/piuio. ITG udev rules. Validated in QEMU.
+- Phase 3b 🟡 — NVIDIA legacy drivers wired, pending real MK9 hardware test.
+
+### trixie-xlibre branch (Debian 13, next-gen)
+- Phase 0+1 ✅ — XSanity boots on Debian 13 trixie (kernel 6.12.73), 1280x720, audio + input working. Validated in QEMU 2026-05-03.
+- Phase 2 🟡 — Installer not yet re-validated on trixie.
+- Phase 3 🟡 — usbhid 1ms patch needs 6.x port; PIUIO2Key-Linux service not yet integrated; NVIDIA community pkgs TBD.
+
+Build pipeline working end-to-end on both branches. Dockerized, reproducible.
 
 ## Repository Layout (current)
 

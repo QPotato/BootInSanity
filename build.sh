@@ -184,17 +184,15 @@ else
         parted squashfs-tools dosfstools e2fsprogs rsync util-linux
         grub-pc-bin grub-efi-amd64-bin grub2-common grub-common
         os-prober
-        # pumptools runtime: 32-bit multiarch libs for PIU legacy games
-        # (pumptools hooks are i386 .so files; games run as 32-bit binaries)
-        libc6-i386 lib32stdc++6
-        libx11-6:i386 libasound2:i386 libgl1-mesa-dri:i386 libglu1-mesa:i386
-        libcurl4:i386 libconfig++9v5:i386
         # loop-mount + extraction for PIU .img.gz images
         mount util-linux
         # Python + evdev for PIUIO2Key-Linux and launcher UI
         python3 python3-evdev python3-pygame
         # curl for pumptools download at build time (wget as fallback)
         curl
+        # 32-bit compat layer (pure amd64 packages; :i386 libs installed in step 4b
+        # after dpkg --add-architecture i386 + apt-get update)
+        libc6-i386 lib32stdc++6
     )
     case "$GPU" in
         nouveau) ;;  # in-tree modesetting; no extra packages
@@ -301,8 +299,9 @@ chroot_run apt-get update -qq
 chroot_run apt-get install -y --no-install-recommends \
     libc6-i386 lib32stdc++6 \
     libx11-6:i386 libasound2:i386 \
+    libxrandr2:i386 libxi6:i386 libxcursor1:i386 libxinerama1:i386 \
     libgl1-mesa-dri:i386 libglu1-mesa:i386 \
-    libcurl4:i386 || true   # libconfig++ i386 pulled in if available
+    libcurl4:i386 libusb-0.1-4:i386 || true
 
 # Download pumptools prebuilt release into chroot.
 if curl -fsSL --max-time 120 -o "${PUMPTOOLS_DEST}/pumptools.zip" "$PUMPTOOLS_URL"; then

@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         zstd xz-utils \
         ca-certificates \
         file kmod \
+        unzip \
         rsync \
         sudo \
         procps \

@@ -21,14 +21,22 @@ if [[ ! -x "$XSANITY_SH" ]]; then
     exec /opt/bootinsanity/missing-xsanity.sh
 fi
 
+# Unmute ALSA output — ALC662 (MK9) boots with outputs muted.
+amixer set Master unmute  2>/dev/null || true
+amixer set Master 100%    2>/dev/null || true
+amixer set PCM    unmute  2>/dev/null || true
+amixer set Speaker unmute 2>/dev/null || true
+amixer set Headphone unmute 2>/dev/null || true
+
 # Pre-seed Preferences.ini with ALSA backend if absent.
+# SoundDevice=dmix matches pumptools hook.conf and works on ALC662 / Intel HDA.
 PREFS="${XSANITY_DIR}/Save/Preferences.ini"
 if [[ ! -f "$PREFS" ]]; then
     mkdir -p "${XSANITY_DIR}/Save" 2>/dev/null || true
     cat > "$PREFS" 2>/dev/null <<'EOF' || true
 [Options]
 SoundDrivers=ALSA-sw
-SoundDevice=default
+SoundDevice=dmix
 DisplayWidth=1280
 DisplayHeight=720
 DisplayColorDepth=32

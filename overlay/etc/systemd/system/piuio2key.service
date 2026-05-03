@@ -1,0 +1,16 @@
+[Unit]
+Description=PIUIO2Key-Linux USB IO bridge
+Documentation=https://github.com/carlos-garcia/PIUIO2Key-Linux
+After=local-fs.target
+# piu-launch.sh stops this service while pumptools runs and restarts it on exit.
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/bootinsanity/piuio2key/piu_bridge.py --no-tray
+Restart=on-failure
+RestartSec=2
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

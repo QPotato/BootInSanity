@@ -190,6 +190,8 @@ else
         python3 python3-evdev python3-usb python3-pygame
         # unzip: needed by pumptools extraction step
         unzip
+        # Phase 4 system mode
+        pcmanfm evtest cloud-guest-utils
         # curl for pumptools download at build time (wget as fallback)
         curl
         # 32-bit compat layer (pure amd64 packages; :i386 libs installed in step 4b
@@ -227,6 +229,7 @@ if [[ -d "$OVERLAY" ]]; then
     # get pump:pump after user creation in step [4/9].
     chown -R 0:0 "${CHROOT}/etc" "${CHROOT}/opt"
     chmod 0755 "${CHROOT}/opt/bootinsanity/"*.sh
+    chmod 0755 "${CHROOT}/opt/bootinsanity/system-mode/"*.sh 2>/dev/null || true
     chmod 0755 "${CHROOT}/opt/bootinsanity-installer/"*.sh 2>/dev/null || true
     chmod 0440 "${CHROOT}/etc/sudoers.d/pump"
 else

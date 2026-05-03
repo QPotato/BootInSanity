@@ -47,20 +47,10 @@ while :; do
     CRASH_COUNT=$((CRASH_COUNT+1))
     echo "=== XSanity exited rc=$rc at $(date) ==="
 
-    # Debug aid: after 3 rapid failures, drop to a terminal so the user
-    # can inspect logs. Phase 4 replaces this with proper system mode.
+    # After 3 rapid crashes enter system mode so the user can inspect logs.
     if [[ $CRASH_COUNT -ge 3 ]]; then
-        echo "=== 3 crashes — opening lxterminal for debug ==="
-        lxterminal -e bash -c "
-            echo 'BootInSanity — XSanity has crashed 3 times.'
-            echo 'Log: /tmp/bootinsanity-launch.log'
-            echo
-            echo 'Press Enter to retry, or Ctrl+D to exit terminal.'
-            tail -n 50 /tmp/bootinsanity-launch.log
-            read line || true
-            exec bash
-        "
-        CRASH_COUNT=0
+        echo "=== 3 crashes — entering system mode ==="
+        exec /opt/bootinsanity/system-mode/exit-to-desktop.sh
     fi
     sleep 1
 done

@@ -21,6 +21,7 @@ Last updated: 2026-05-03
 - Phase 3b ✅ — usbhid.ko built with elsepoll param, vermagic matches 6.12.85. Validated in QEMU 2026-05-03.
 - Phase 3c 🔴 — NVIDIA community packages not yet implemented (GPU=nouveau only on trixie).
 - Phase 4 🟡 — System mode keybinds committed; Win+F4 untestable in QEMU (host WM intercepts Super key). Pending hardware validation.
+- Phase 5 🟡 — Update flow validated in QEMU 2026-05-04. XSanity fully playable with audio (installed system). Hardware retest needed.
 
 Build pipeline working end-to-end on both branches. Dockerized, reproducible.
 
@@ -288,11 +289,12 @@ Fix needed: udev rule to prevent usbhid from binding to PIUIO (0547:1002).
 **Phase 4 system mode** ✅ — Win+F4 drops to desktop with keybind menu.
 **3-crash fallback** ✅ — auto-entered system mode after 3 XSanity crashes.
 
-**Audio** ⚠️ INCONCLUSIVE — `sudo` binary itself returned `Input/output
-error` (USB read error off live squashfs, not a software audio issue).
-`speaker-test -D dmix` also I/O error — same root cause.
-`aplay -L` shows `dmix:CARD=Intel,DEV=0` exists. Audio must be retested on
-installed system (internal SSD). Likely not a real bug.
+**Audio** ✅ WORKING — XSanity fully playable with sound in QEMU (installed
+system). Root cause of earlier failures: XSanity writes `SoundDrivers=WaveOut`
+on first run (Linux default broken); our pre-seed only ran on absent file.
+Fix: launch.sh now always sed-patches `SoundDrivers=ALSA-sw` and
+`SoundDevice=default` into Preferences.ini on every boot.
+Hardware retest needed (previous audio test was on live USB with read errors).
 
 **GPU/display** — not yet tested (live mode, nouveau).
 

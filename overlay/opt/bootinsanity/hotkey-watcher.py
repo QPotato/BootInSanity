@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # Evdev-level global hotkey watcher for BootInSanity.
 # Runs as root, reads /dev/input/* directly — not blocked by XGrabKeyboard.
+# Does NOT grab devices: XSanity still receives all keyboard events via X11.
 #
 # Hotkeys:
 #   Win+F4   → exit-to-desktop (system mode)
@@ -32,25 +33,26 @@ last_action = 0
 DEBOUNCE = 1.0  # seconds between repeated triggers
 
 
+def is_keyboard(dev):
+    caps = dev.capabilities()
+    keys = caps.get(evdev.ecodes.EV_KEY, [])
+    # Must have letter keys — excludes mice, PIUIO, and other EV_KEY devices
+    return evdev.ecodes.KEY_A in keys and evdev.ecodes.KEY_Z in keys
+
+
 def handle_device(dev):
-    try:
-        dev.grab()
-    except Exception:
-        pass
     try:
         for event in dev.read_loop():
             if event.type != evdev.ecodes.EV_KEY:
                 continue
             key = evdev.categorize(event)
             code = key.scancode
-            # Track modifier state
             if code in META_KEYS:
                 if key.keystate in (key.key_down, key.key_hold):
                     held.add(code)
                 else:
                     held.discard(code)
                 continue
-            # Key down with Win held
             if key.keystate == key.key_down and held & META_KEYS:
                 action = ACTIONS.get(code)
                 if action:
@@ -70,15 +72,19 @@ def handle_device(dev):
 def watch():
     threads = {}
     while True:
-        devs = {p: evdev.InputDevice(p)
-                for p in evdev.list_devices()
-                if 'keyboard' in (evdev.InputDevice(p).name or '').lower()
-                or evdev.ecodes.EV_KEY in evdev.InputDevice(p).capabilities()}
-        for path, dev in devs.items():
-            if path not in threads or not threads[path].is_alive():
+        for path in evdev.list_devices():
+            if path in threads and threads[path].is_alive():
+                continue
+            try:
+                dev = evdev.InputDevice(path)
+                if not is_keyboard(dev):
+                    dev.close()
+                    continue
                 t = threading.Thread(target=handle_device, args=(dev,), daemon=True)
                 t.start()
                 threads[path] = t
+            except (OSError, IOError):
+                pass
         time.sleep(3)
 
 

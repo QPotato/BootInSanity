@@ -1,4 +1,4 @@
-# Andamiro PIUIO (0547:1002) — raw USB access for piuio2key / pumptools.
+# Andamiro PIUIO (0547:1002) — raw USB access for XSanity (libusb).
 # usbhid is told to ignore this device via modprobe quirks; libusb opens it.
 SUBSYSTEMS=="usb", ATTRS{idVendor}=="0547", ATTRS{idProduct}=="1002", OWNER="pump", GROUP="pump", MODE="0660"
 KERNEL=="hidraw*", ATTRS{idVendor}=="0547", ATTRS{idProduct}=="1002", OWNER="pump", GROUP="pump", MODE="0660"

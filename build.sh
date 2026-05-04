@@ -164,9 +164,9 @@ else
         xserver-xorg-core
         xserver-xorg-input-libinput xserver-xorg-input-evdev
         xserver-xorg-video-modesetting xserver-xorg-video-fbdev xserver-xorg-video-vesa
-        xinit xauth xterm dbus-x11 x11-xserver-utils
+        xinit xauth dbus-x11 x11-xserver-utils
         # Window manager
-        i3 i3-wm
+        i3-wm
         # Audio (ALSA only — no PulseAudio/PipeWire for lowest latency)
         alsa-utils libasound2-plugins
         # Networking + time
@@ -175,8 +175,8 @@ else
         openssh-server
         # Terminal for missing-xsanity screen + system mode
         lxterminal
-        # Fonts (i3 + xterm need at least one font)
-        fonts-dejavu-core xfonts-base
+        # Fonts
+        fonts-dejavu-core
         # Mesa userland (OpenGL) — XSanity links against libGL
         libgl1-mesa-dri libgl1
         # Phase 2 installer: partition / format / unsquashfs / GRUB

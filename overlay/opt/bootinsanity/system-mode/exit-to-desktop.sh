@@ -10,11 +10,10 @@ echo "=== system mode entered at $(date) ===" >> "$LOG"
 
 # Kill XSanity and the crash-loop (don't kill ourselves).
 pkill -f "XSanity\.sh" 2>/dev/null || true
-pkill -f "xsanity\|stepmania\|openitg" 2>/dev/null || true
-# Kill any remaining launch.sh that is not us.
 pkill -f "bootinsanity/launch\.sh" 2>/dev/null || true
+pkill -f "xsanity\|stepmania\|openitg" 2>/dev/null || true
 
-sleep 0.3
+sleep 1.0
 
 # Open a terminal pre-loaded with the crash log.
 lxterminal --title="BootInSanity — System Mode" -e bash -c "

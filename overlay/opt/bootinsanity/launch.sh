@@ -35,6 +35,7 @@ amixer set 'Mic'      mute 2>/dev/null || true
 amixer set 'Mic Boost' 0   2>/dev/null || true
 amixer set 'CD'       mute 2>/dev/null || true
 amixer set 'Capture'  0    2>/dev/null || true
+amixer set 'Capture'  nocap 2>/dev/null || true
 amixer set 'Internal Mic' mute 2>/dev/null || true
 
 # Ensure Preferences.ini exists with correct baseline settings.

@@ -184,7 +184,7 @@ else
         grub-pc-bin grub-efi-amd64-bin grub2-common grub-common
         os-prober
         # Phase 4 system mode
-        pcmanfm evtest cloud-guest-utils
+        pcmanfm evtest cloud-guest-utils usbutils
         # Python + evdev for hotkey watcher
         python3 python3-evdev
     )
@@ -290,7 +290,7 @@ echo "==> [5/8] Injecting XSanity"
 if [[ -n "$XSANITY_DIR" ]]; then
     echo "    Copying $XSANITY_DIR → /mnt/xsanity/"
     mkdir -p "${CHROOT}/mnt/xsanity"
-    rsync -a "${XSANITY_DIR%/}/" "${CHROOT}/mnt/xsanity/"
+    rsync -a --exclude='Cache/' --exclude='Save/' "${XSANITY_DIR%/}/" "${CHROOT}/mnt/xsanity/"
     chroot_run chown -R pump:pump /mnt/xsanity
     chmod +x "${CHROOT}/mnt/xsanity/XSanity.sh" 2>/dev/null || true
 
@@ -326,6 +326,15 @@ mkdir -p "$DEBIAN_MNT"
 mount -o loop,ro "$DEBIAN_ISO" "$DEBIAN_MNT"  # remount for any later steps
 
 echo "==> [6/8] Building squashfs"
+# Purge old kernel versions — keep only the newest. Cached chroot may have
+# accumulated stale kernels from prior builds; each adds ~300MB to the ISO.
+LATEST_KVER="$(ls -1 "${CHROOT}/boot/" | grep '^vmlinuz-' | sort -V | tail -1 | sed 's|^vmlinuz-||')"
+for old in "${CHROOT}/boot/vmlinuz-"*; do
+    ver="${old##*/vmlinuz-}"
+    [[ "$ver" != "$LATEST_KVER" ]] && chroot_run apt-get purge -y "linux-image-${ver}" 2>/dev/null || true
+done
+chroot_run apt-get autoremove -y 2>/dev/null || true
+
 # Write version stamp into rootfs and ISO root for installer to read.
 echo "$VERSION" > "${CHROOT}/etc/bootinsanity-version"
 echo "GPU=$GPU" >> "${CHROOT}/etc/bootinsanity-version"

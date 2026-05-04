@@ -14,14 +14,14 @@ PATCH_PY=/tmp/patch-usbhid.py
 
 apt-get update -qq
 
-# Build deps: kernel headers + source for the kernel version in the chroot.
+# Build deps — install metapackages first so kernel is current before we probe KVER.
 apt-get install -y --no-install-recommends \
     linux-image-amd64 linux-headers-amd64 \
     build-essential bc kmod cpio flex bison \
     libssl-dev libelf-dev rsync \
     python3
 
-# Determine the actual kernel version installed.
+# Determine the actual kernel version installed (highest in /boot).
 KVER="$(ls -1 /boot/ | grep '^vmlinuz-' | sort -V | tail -1 | sed 's|^vmlinuz-||')"
 [[ -n "$KVER" ]] || { echo "ERROR: no kernel in /boot" >&2; exit 1; }
 KMAJ="${KVER%%.*}"
@@ -32,13 +32,29 @@ HEADERS="/usr/src/linux-headers-${KVER}"
 [[ -d "$HEADERS" ]] || { echo "ERROR: $HEADERS missing" >&2; exit 1; }
 
 # Install the matching linux-source tarball.
-# Purge first so stale dpkg state from a cached chroot doesn't block download
-# (apt --reinstall fails when the registered version drifts from current repo).
+# Cached chroot may have a stale kernel version whose source is no longer in
+# the repos.  If the exact package is unavailable, upgrade the kernel
+# metapackage (already done above) and re-probe KVER — then try again.
 SOURCE_PKG="linux-source-${KMAJ}.${KMIN}"
 TARBALL="/usr/src/${SOURCE_PKG}.tar.xz"
 if [[ ! -f "$TARBALL" ]]; then
     apt-get remove --purge -y "$SOURCE_PKG" 2>/dev/null || true
-    apt-get install -y --no-install-recommends "$SOURCE_PKG"
+    if ! apt-cache show "$SOURCE_PKG" &>/dev/null; then
+        echo "    WARN: $SOURCE_PKG not in repos — re-probing after kernel upgrade"
+        # Headers metapackage already upgraded kernel; re-detect KVER.
+        KVER="$(ls -1 /boot/ | grep '^vmlinuz-' | sort -V | tail -1 | sed 's|^vmlinuz-||')"
+        KMAJ="${KVER%%.*}"
+        KMIN="${KVER#*.}"; KMIN="${KMIN%%.*}"
+        SOURCE_PKG="linux-source-${KMAJ}.${KMIN}"
+        TARBALL="/usr/src/${SOURCE_PKG}.tar.xz"
+        HEADERS="/usr/src/linux-headers-${KVER}"
+        echo "    re-probed kernel: $KVER — trying $SOURCE_PKG"
+        apt-get install -y --no-install-recommends \
+            "linux-headers-${KVER}" "$SOURCE_PKG" 2>/dev/null \
+            || apt-get install -y --no-install-recommends linux-headers-amd64 "$SOURCE_PKG"
+    else
+        apt-get install -y --no-install-recommends "$SOURCE_PKG"
+    fi
 fi
 [[ -f "$TARBALL" ]] || { echo "ERROR: $TARBALL missing after install" >&2; exit 1; }
 

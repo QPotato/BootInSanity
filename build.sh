@@ -322,37 +322,7 @@ else
 fi
 
 
-echo "==> [4c/9] Building out-of-tree kernel modules"
-KVER_CHROOT="$(ls -1 "${CHROOT}/boot/" | grep '^vmlinuz-' | sort -V | tail -1 | sed 's|^vmlinuz-||')"
-KMAJ="${KVER_CHROOT%%.*}"
-if [[ "$KMAJ" -le 5 ]]; then
-    # 5.x path: usbhid 1ms patch + piuio kmod (bullseye/bookworm).
-    PATCH_SRC="${ROOT_DIR}/kernel/usbhid-1ms.patch"
-    BUILDER_SRC="${ROOT_DIR}/kernel/build-kmods.sh"
-    if [[ -f "$PATCH_SRC" ]] && [[ -f "$BUILDER_SRC" ]]; then
-        cp "$PATCH_SRC"   "${CHROOT}/tmp/usbhid-1ms.patch"
-        cp "$BUILDER_SRC" "${CHROOT}/tmp/build-kmods.sh"
-        chmod +x "${CHROOT}/tmp/build-kmods.sh"
-        chroot_run /tmp/build-kmods.sh
-        rm -f "${CHROOT}/tmp/usbhid-1ms.patch" "${CHROOT}/tmp/build-kmods.sh"
-    else
-        echo "    WARN: kernel/build-kmods.sh missing — skipping" >&2
-    fi
-else
-    # 6.x path: usbhid 1ms patch only (piuio replaced by PIUIO2Key-Linux userspace).
-    PATCH_PY="${ROOT_DIR}/kernel/patch-usbhid.py"
-    BUILDER_6X="${ROOT_DIR}/kernel/build-kmods-6x.sh"
-    if [[ -f "$PATCH_PY" ]] && [[ -f "$BUILDER_6X" ]]; then
-        cp "$PATCH_PY"    "${CHROOT}/tmp/patch-usbhid.py"
-        cp "$BUILDER_6X"  "${CHROOT}/tmp/build-kmods-6x.sh"
-        chmod +x "${CHROOT}/tmp/build-kmods-6x.sh"
-        chroot_run /tmp/build-kmods-6x.sh \
-            || echo "    WARN: usbhid kmod build failed — shipping stock usbhid (1ms patch skipped)" >&2
-        rm -f "${CHROOT}/tmp/patch-usbhid.py" "${CHROOT}/tmp/build-kmods-6x.sh"
-    else
-        echo "    WARN: kernel/build-kmods-6x.sh or patch-usbhid.py missing — skipping" >&2
-    fi
-fi
+echo "==> [4c/9] Kernel modules — skipped (usbhid elsepoll patch not applicable: PIUIO uses libusb, not HID)"
 
 echo "==> [5/9] Injecting XSanity"
 if [[ -n "$XSANITY_DIR" ]]; then

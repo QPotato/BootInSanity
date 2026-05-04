@@ -1,14 +1,13 @@
 #!/bin/bash
 # BootInSanity build script — trixie-xlibre branch
 #
-# Target: Debian 13 (trixie) + 6.x kernel + Xlibre + PIUIO2Key-Linux
+# Target: Debian 13 (trixie) + 6.x kernel + XSanity
 #
-# Phase 0: bare Debian 13 live ISO bootable in QEMU.
-# Phase 1: + X11 + i3 + ALSA + autologin + XSanity/Xlibre injection.
-# Phase 2: Clonezilla-style installer, 3-partition install.
-# Phase 3: NVIDIA (community packages TBD), usbhid 6.x port, PIUIO2Key-Linux.
-# Phase 4: System mode (Win+key shortcuts).
-# Phase 5: Update flow + branding polish.
+# Phase 0+1: Debian 13 live ISO + XSanity autostart.
+# Phase 2:   Installer (clean + update), 3-partition layout.
+# Phase 3:   PIUIO/LXIO udev. NVIDIA legacy TBD.
+# Phase 4:   System mode (evdev hotkeys, Win+key shortcuts).
+# Phase 5:   Branding polish.
 
 set -euo pipefail
 

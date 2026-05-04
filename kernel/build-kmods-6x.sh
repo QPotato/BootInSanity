@@ -39,24 +39,22 @@ SOURCE_PKG="linux-source-${KMAJ}.${KMIN}"
 TARBALL="/usr/src/${SOURCE_PKG}.tar.xz"
 if [[ ! -f "$TARBALL" ]]; then
     apt-get remove --purge -y "$SOURCE_PKG" 2>/dev/null || true
-    if ! apt-cache show "$SOURCE_PKG" &>/dev/null; then
-        echo "    WARN: $SOURCE_PKG not in repos — re-probing after kernel upgrade"
-        # Headers metapackage already upgraded kernel; re-detect KVER.
-        KVER="$(ls -1 /boot/ | grep '^vmlinuz-' | sort -V | tail -1 | sed 's|^vmlinuz-||')"
-        KMAJ="${KVER%%.*}"
-        KMIN="${KVER#*.}"; KMIN="${KMIN%%.*}"
-        SOURCE_PKG="linux-source-${KMAJ}.${KMIN}"
-        TARBALL="/usr/src/${SOURCE_PKG}.tar.xz"
-        HEADERS="/usr/src/linux-headers-${KVER}"
-        echo "    re-probed kernel: $KVER — trying $SOURCE_PKG"
-        apt-get install -y --no-install-recommends \
-            "linux-headers-${KVER}" "$SOURCE_PKG" 2>/dev/null \
-            || apt-get install -y --no-install-recommends linux-headers-amd64 "$SOURCE_PKG"
-    else
-        apt-get install -y --no-install-recommends "$SOURCE_PKG"
+    # Try versioned package first; fall back to the unversioned metapackage.
+    apt-get install -y --no-install-recommends "$SOURCE_PKG" \
+        || apt-get install -y --no-install-recommends linux-source
+    # If the metapackage pulled a different version, re-detect paths.
+    if [[ ! -f "$TARBALL" ]]; then
+        TARBALL="$(ls /usr/src/linux-source-*.tar.xz 2>/dev/null | sort -V | tail -1)"
+        [[ -n "$TARBALL" ]] || { echo "ERROR: no linux-source tarball found in /usr/src" >&2; exit 1; }
+        SOURCE_PKG="$(basename "${TARBALL%.tar.xz}")"
+        KVER_SRC="${SOURCE_PKG#linux-source-}"
+        # Re-detect headers for the source version (best-effort).
+        HEADERS_NEW="$(ls -d /usr/src/linux-headers-${KVER_SRC}* 2>/dev/null | sort -V | tail -1)"
+        [[ -n "$HEADERS_NEW" ]] && HEADERS="$HEADERS_NEW"
+        echo "    using source: $TARBALL  headers: $HEADERS"
     fi
 fi
-[[ -f "$TARBALL" ]] || { echo "ERROR: $TARBALL missing after install" >&2; exit 1; }
+[[ -f "$TARBALL" ]] || { echo "ERROR: no linux-source tarball" >&2; exit 1; }
 
 SRC="/usr/src/${SOURCE_PKG}"
 if [[ ! -d "$SRC" ]]; then

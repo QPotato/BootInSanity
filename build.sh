@@ -363,7 +363,8 @@ else
         cp "$PATCH_PY"    "${CHROOT}/tmp/patch-usbhid.py"
         cp "$BUILDER_6X"  "${CHROOT}/tmp/build-kmods-6x.sh"
         chmod +x "${CHROOT}/tmp/build-kmods-6x.sh"
-        chroot_run /tmp/build-kmods-6x.sh
+        chroot_run /tmp/build-kmods-6x.sh \
+            || echo "    WARN: usbhid kmod build failed — shipping stock usbhid (1ms patch skipped)" >&2
         rm -f "${CHROOT}/tmp/patch-usbhid.py" "${CHROOT}/tmp/build-kmods-6x.sh"
     else
         echo "    WARN: kernel/build-kmods-6x.sh or patch-usbhid.py missing — skipping" >&2

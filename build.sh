@@ -187,7 +187,7 @@ else
         # loop-mount + extraction for PIU .img.gz images
         mount util-linux
         # Python + evdev + usb for PIUIO2Key-Linux and launcher UI
-        python3 python3-evdev python3-usb python3-pygame
+        python3 python3-evdev python3-pygame
         # unzip: needed by pumptools extraction step
         unzip
         # Phase 4 system mode
@@ -281,7 +281,6 @@ chroot_run systemctl enable chrony.service
 chroot_run systemctl enable getty@tty1.service
 chroot_run systemctl enable bootinsanity-installer.service
 chroot_run systemctl enable bootinsanity-hotkeys.service
-# piuio2key intentionally NOT enabled — XSanity reads PIUIO natively.
 
 # Mask audio servers we are NOT using (ALSA only).
 for svc in pulseaudio.service pulseaudio.socket pipewire.service pipewire.socket \
@@ -322,22 +321,6 @@ else
     echo "    URL tried: $PUMPTOOLS_URL" >&2
 fi
 
-echo "==> [4b-2/9] Installing PIUIO2Key-Linux"
-PIUIO2KEY_URL="https://github.com/carlos-garcia/PIUIO2Key-Linux/archive/refs/heads/main.zip"
-PIUIO2KEY_DEST="${CHROOT}/opt/bootinsanity/piuio2key"
-mkdir -p "$PIUIO2KEY_DEST"
-if curl -fsSL --max-time 60 -o /tmp/piuio2key.zip "$PIUIO2KEY_URL"; then
-    unzip -q /tmp/piuio2key.zip -d /tmp/piuio2key-extract
-    # Archive root is PIUIO2Key-Linux-main/
-    rsync -a /tmp/piuio2key-extract/PIUIO2Key-Linux-main/ "$PIUIO2KEY_DEST/"
-    rm -rf /tmp/piuio2key.zip /tmp/piuio2key-extract
-    chroot_run chown -R root:root /opt/bootinsanity/piuio2key
-    chroot_run chmod +x /opt/bootinsanity/piuio2key/piu_bridge.py
-    echo "    PIUIO2Key-Linux installed at /opt/bootinsanity/piuio2key"
-else
-    echo "    WARN: PIUIO2Key-Linux download failed — PIUIO USB bridge will not work" >&2
-    echo "    URL tried: $PIUIO2KEY_URL" >&2
-fi
 
 echo "==> [4c/9] Building out-of-tree kernel modules"
 KVER_CHROOT="$(ls -1 "${CHROOT}/boot/" | grep '^vmlinuz-' | sort -V | tail -1 | sed 's|^vmlinuz-||')"

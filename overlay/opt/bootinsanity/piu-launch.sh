@@ -11,7 +11,6 @@
 set -euo pipefail
 
 PUMPTOOLS=/opt/pumptools
-PIUIO2KEY_SVC=piuio2key.service
 
 VERSION_DIR="${1:-}"
 [[ -n "$VERSION_DIR" ]] || { echo "Usage: $0 <version-dir>" >&2; exit 1; }
@@ -125,15 +124,6 @@ fi
 if [[ ! -f "${VERSION_DIR}/piueb" ]]; then
     cp "$PUMPTOOLS/piueb" "${VERSION_DIR}/piueb"
     chmod +x "${VERSION_DIR}/piueb"
-fi
-
-# ---------------------------------------------------------------------------
-# Ensure PIUIO2Key-Linux is stopped — pumptools reads PIUIO via hook directly.
-# (piuio2key is not started at boot; this guard handles manual-start edge case.)
-# ---------------------------------------------------------------------------
-if systemctl is-active --quiet "$PIUIO2KEY_SVC" 2>/dev/null; then
-    echo "==> Stopping $PIUIO2KEY_SVC (pumptools takes IO ownership)"
-    systemctl stop "$PIUIO2KEY_SVC"
 fi
 
 # ---------------------------------------------------------------------------

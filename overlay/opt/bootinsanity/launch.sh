@@ -21,12 +21,21 @@ if [[ ! -x "$XSANITY_SH" ]]; then
     exec /opt/bootinsanity/missing-xsanity.sh
 fi
 
-# Unmute ALSA output — ALC662 (MK9) boots with outputs muted.
-amixer set Master unmute  2>/dev/null || true
-amixer set Master 100%    2>/dev/null || true
-amixer set PCM    unmute  2>/dev/null || true
-amixer set Speaker unmute 2>/dev/null || true
+# Configure ALSA output — ALC662 (MK9) boots with outputs muted.
+amixer set Master   unmute  2>/dev/null || true
+amixer set Master   100%    2>/dev/null || true
+amixer set PCM      unmute  2>/dev/null || true
+amixer set Speaker  unmute  2>/dev/null || true
 amixer set Headphone unmute 2>/dev/null || true
+
+# Mute all capture/input paths to prevent loopback noise on the speakers.
+# ALC662: Line-In and Mic loopback are enabled by default and cause audible hum.
+amixer set 'Line In'  mute 2>/dev/null || true
+amixer set 'Mic'      mute 2>/dev/null || true
+amixer set 'Mic Boost' 0   2>/dev/null || true
+amixer set 'CD'       mute 2>/dev/null || true
+amixer set 'Capture'  0    2>/dev/null || true
+amixer set 'Internal Mic' mute 2>/dev/null || true
 
 # Ensure Preferences.ini exists with correct baseline settings.
 # XSanity writes its own defaults on first run (SoundDrivers=WaveOut, which

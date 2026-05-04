@@ -280,7 +280,7 @@ chroot_run systemctl enable NetworkManager.service
 chroot_run systemctl enable chrony.service
 chroot_run systemctl enable getty@tty1.service
 chroot_run systemctl enable bootinsanity-installer.service
-chroot_run systemctl enable piuio2key.service
+# piuio2key intentionally NOT enabled — XSanity reads PIUIO natively.
 
 # Mask audio servers we are NOT using (ALSA only).
 for svc in pulseaudio.service pulseaudio.socket pipewire.service pipewire.socket \

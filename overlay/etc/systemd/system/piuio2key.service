@@ -2,7 +2,8 @@
 Description=PIUIO2Key-Linux USB IO bridge
 Documentation=https://github.com/carlos-garcia/PIUIO2Key-Linux
 After=local-fs.target
-# piu-launch.sh stops this service while pumptools runs and restarts it on exit.
+# NOT enabled by default — XSanity reads PIUIO natively.
+# piu-launch.sh starts/stops this for pumptools keyboard-IO mode only.
 
 [Service]
 Type=simple
@@ -13,4 +14,4 @@ StandardOutput=journal
 StandardError=journal
 
 [Install]
-WantedBy=multi-user.target
+# WantedBy intentionally omitted — do not enable at boot.

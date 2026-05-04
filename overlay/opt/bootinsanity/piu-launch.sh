@@ -128,19 +128,13 @@ if [[ ! -f "${VERSION_DIR}/piueb" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Stop PIUIO2Key-Linux — pumptools owns IO from here
+# Ensure PIUIO2Key-Linux is stopped — pumptools reads PIUIO via hook directly.
+# (piuio2key is not started at boot; this guard handles manual-start edge case.)
 # ---------------------------------------------------------------------------
-PIUIO2KEY_WAS_RUNNING=0
 if systemctl is-active --quiet "$PIUIO2KEY_SVC" 2>/dev/null; then
     echo "==> Stopping $PIUIO2KEY_SVC (pumptools takes IO ownership)"
     systemctl stop "$PIUIO2KEY_SVC"
-    PIUIO2KEY_WAS_RUNNING=1
 fi
-
-restart_piuio2key() {
-    [[ "$PIUIO2KEY_WAS_RUNNING" -eq 1 ]] && systemctl start "$PIUIO2KEY_SVC" || true
-}
-trap restart_piuio2key EXIT
 
 # ---------------------------------------------------------------------------
 # Launch via piueb (must run as root — piueb enforces this)

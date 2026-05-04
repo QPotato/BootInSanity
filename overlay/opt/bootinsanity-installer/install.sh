@@ -18,6 +18,7 @@ banner() {
 
   ============================================================
                     BootInSanity Installer
+                    Version: ${VERSION:-unknown}  GPU: ${GPU:-unknown}
                     Mode: $MODE
   ============================================================
 
@@ -27,6 +28,11 @@ EOF
 MODE=$(grep -oE 'install=[a-z]+' /proc/cmdline | head -1 | cut -d= -f2 || true)
 [[ -n "${MODE:-}" ]] || { err "install= not in /proc/cmdline"; exit 1; }
 [[ "$MODE" == "clean" || "$MODE" == "update" ]] || { err "invalid mode: $MODE"; exit 1; }
+
+# Read version from ISO root metadata file.
+META=/run/live/medium/bootinsanity.meta
+VERSION=$(grep '^VERSION=' "$META" 2>/dev/null | cut -d= -f2 || echo "unknown")
+GPU=$(grep '^GPU=' "$META" 2>/dev/null | cut -d= -f2 || echo "unknown")
 
 banner
 
@@ -145,12 +151,9 @@ SQUASHFS=/run/live/medium/live/filesystem.squashfs
 [[ -f "$SQUASHFS" ]] || { err "squashfs not found at $SQUASHFS"; exit 1; }
 
 if [[ "$MODE" == "update" ]]; then
-    # Don't extract /mnt/xsanity into p2 — p3 has the user's data.
-    unsquashfs -f -d "$MNT" -e mnt/xsanity "$SQUASHFS" || true
-    # unsquashfs -e excludes pattern from listing; re-run extracting all
-    # except mnt/xsanity:
-    unsquashfs -f -d "$MNT" "$SQUASHFS" -ef <(echo "/mnt/xsanity") 2>/dev/null \
-        || unsquashfs -f -d "$MNT" "$SQUASHFS"
+    # Extract rootfs then drop the xsanity tree — user data lives on p3.
+    # (unsquashfs exclude flags vary by version; extract-then-delete is reliable.)
+    unsquashfs -f -d "$MNT" "$SQUASHFS"
     rm -rf "$MNT/mnt/xsanity"
     mkdir -p "$MNT/mnt/xsanity"
 else

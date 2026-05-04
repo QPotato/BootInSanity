@@ -409,6 +409,9 @@ mkdir -p "$DEBIAN_MNT"
 mount -o loop,ro "$DEBIAN_ISO" "$DEBIAN_MNT"  # remount for any later steps
 
 echo "==> [6/9] Building squashfs"
+# Write version stamp into rootfs and ISO root for installer to read.
+echo "$VERSION" > "${CHROOT}/etc/bootinsanity-version"
+echo "GPU=$GPU" >> "${CHROOT}/etc/bootinsanity-version"
 mkdir -p "${ISO_STAGE}/live"
 rm -f "${ISO_STAGE}/live/filesystem.squashfs"
 # Note: do NOT exclude /boot — Phase 2 installer extracts the squashfs onto
@@ -418,6 +421,9 @@ rm -f "${ISO_STAGE}/live/filesystem.squashfs"
 # environment.
 mksquashfs "$CHROOT" "${ISO_STAGE}/live/filesystem.squashfs" \
     -comp xz -noappend
+
+# Also write version to ISO root so installer can read it before unsquashfs.
+printf 'VERSION=%s\nGPU=%s\n' "$VERSION" "$GPU" > "${ISO_STAGE}/bootinsanity.meta"
 
 echo "==> [7/9] Copying kernel + initrd"
 KVER="$(ls -1 "${CHROOT}/boot/" | grep '^vmlinuz-' | sort -V | tail -1 | sed 's|^vmlinuz-||')"
@@ -466,17 +472,17 @@ cat > "${ISO_STAGE}/boot/grub/grub.cfg" <<EOF
 set timeout=10
 set default=0
 
-menuentry "BootInSanity — Clean Install (wipes target disk)" {
+menuentry "BootInSanity $VERSION — Clean Install (wipes target disk)" {
     linux  /live/vmlinuz boot=live install=clean quiet
     initrd /live/initrd
 }
 
-menuentry "BootInSanity — Update (re-flash rootfs, preserve XSanity + Songs)" {
+menuentry "BootInSanity $VERSION — Update (re-flash rootfs, preserve XSanity + Songs)" {
     linux  /live/vmlinuz boot=live install=update quiet
     initrd /live/initrd
 }
 
-menuentry "BootInSanity — Live Boot (no install)" {
+menuentry "BootInSanity $VERSION — Live Boot (no install)" {
     linux  /live/vmlinuz boot=live quiet
     initrd /live/initrd
 }

@@ -25,7 +25,7 @@ banner() {
 EOF
 }
 
-MODE=$(grep -oE 'install=[a-z]+' /proc/cmdline | head -1 | cut -d= -f2 || true)
+MODE=$(grep -oE 'install=[a-z-]+' /proc/cmdline | head -1 | cut -d= -f2 || true)
 [[ -n "${MODE:-}" ]] || { err "install= not in /proc/cmdline"; exit 1; }
 [[ "$MODE" == "clean" || "$MODE" == "update" ]] || { err "invalid mode: $MODE"; exit 1; }
 

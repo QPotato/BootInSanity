@@ -228,7 +228,7 @@ if [[ -d "$OVERLAY" ]]; then
     # root:root (sudo refuses /etc/sudoers.d unless root-owned). Home dirs
     # get pump:pump after user creation in step [4/9].
     chown -R 0:0 "${CHROOT}/etc" "${CHROOT}/opt"
-    chmod 0755 "${CHROOT}/opt/bootinsanity/"*.sh
+    chmod 0755 "${CHROOT}/opt/bootinsanity/"*.sh "${CHROOT}/opt/bootinsanity/"*.py 2>/dev/null || true
     chmod 0755 "${CHROOT}/opt/bootinsanity/system-mode/"*.sh 2>/dev/null || true
     chmod 0755 "${CHROOT}/opt/bootinsanity-installer/"*.sh 2>/dev/null || true
     chmod 0440 "${CHROOT}/etc/sudoers.d/pump"
@@ -280,6 +280,7 @@ chroot_run systemctl enable NetworkManager.service
 chroot_run systemctl enable chrony.service
 chroot_run systemctl enable getty@tty1.service
 chroot_run systemctl enable bootinsanity-installer.service
+chroot_run systemctl enable bootinsanity-hotkeys.service
 # piuio2key intentionally NOT enabled — XSanity reads PIUIO natively.
 
 # Mask audio servers we are NOT using (ALSA only).

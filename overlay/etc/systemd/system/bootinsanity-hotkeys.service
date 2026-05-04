@@ -1,0 +1,14 @@
+[Unit]
+Description=BootInSanity evdev global hotkey watcher
+After=local-fs.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/bootinsanity/hotkey-watcher.py
+Restart=on-failure
+RestartSec=2
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,44 +1,51 @@
 # BootInSanity — Progress
 
-Branch: **trixie-xlibre** (Debian 13, kernel 6.x). Last updated: 2026-05-04.
+Branch: **trixie-xlibre** (Debian 13, kernel 6.x). Last updated: 2026-05-05.
 
 ## Current status
 
 | Phase | Status | Notes |
 |---|---|---|
 | 0+1 Live + XSanity | ✅ Hardware validated | Sound, video, PIUIO, cabinet lights all working on MK9 |
-| 2 Installer | ✅ QEMU validated | Clean install + update flow both working |
-| 3 IO + pumptools | ✅ | PIUIO reads natively via XSanity; pumptools present for legacy PIU |
+| 2 Installer | ✅ Hardware validated | Clean install confirmed on MK9 (rc3+); update flow pending hardware test |
+| 3 IO + PIUIO | ✅ | XSanity reads PIUIO natively via libusb; usbhid quirk confirmed working |
 | 3c NVIDIA | 🔴 Not started | GPU=nouveau only; legacy driver packaging pending |
-| 4 System mode | 🟡 Implemented | evdev hotkey watcher bypasses XGrabKeyboard; pending hardware retest |
+| 4 System mode | ✅ Hardware validated | Win+F4/G/S/V/B/P/R/M/X all wired; evdev watcher bypasses XGrabKeyboard |
 | 5 Branding + docs | 🔴 Not started | |
 
-## Hardware test results (v0.1-rc1, live mode, MK9)
+## Hardware test results (rc3–rc5, installed mode, MK9)
 
 | Item | Result |
 |---|---|
 | Boot to XSanity | ✅ |
 | Video (nouveau, 720p) | ✅ |
-| Sound (ALC662) | ✅ |
-| PIUIO panel input | ✅ XSanity reads PIUIO natively |
-| Cabinet lights | ✅ Working out of the box |
-| Win+F4 system mode | ❌ XSanity grabs keyboard; evdev watcher added in rc2 |
-| Audio background noise | 🟡 Low hum; ALSA capture mutes added in rc2 |
-| Duplicate input | ❌ piuio2key was running alongside XSanity; removed in rc2 |
+| Sound (ALC662) | ✅ Hum present at boot, stops after a few seconds (nocap fix in rc4, untested) |
+| PIUIO panel input | ✅ XSanity reads PIUIO natively; usbhid quirk confirmed not claiming device |
+| Cabinet lights | ✅ |
+| Keyboard in XSanity | ✅ Fixed rc3 (evdev watcher was grabbing keyboards exclusively) |
+| Win+F4 system mode | ✅ Terminal opens; XSanity window requires Alt+F4 to dismiss (cosmetic) |
+| Win+V alsamixer | ✅ |
+| Win+G return to game | Added rc5, untested on hardware |
+| Win+S add songs | Added rc5, untested on hardware |
+| Installer YES input | ✅ Fixed rc3 |
+| SSH via direct ethernet | ✅ Static IP 192.168.100.2 baked in from rc5 |
+| Double pad input | ✅ Not present in installed mode (live mode only, low priority) |
+| Update flow | 🟡 QEMU validated; hardware test pending |
 
 ## Open issues
 
-- **Win+F4 on hardware**: evdev watcher (`bootinsanity-hotkeys.service`) added in rc2 — untested on hardware
-- **NVIDIA GPU**: nouveau is functional; GT710 and older cards need proprietary drivers for best performance
-- **SSH access**: requires ethernet cable + manual IP assignment on both sides (no DHCP on direct link)
+- **Win+F4 cosmetic**: XSanity process dies but window lingers until Alt+F4 — WM repaint issue, not a crash
+- **Audio hum at boot**: capture ADC switch left on by default; `nocap` fix in rc4, needs hardware retest
+- **NVIDIA GPU**: nouveau functional; GT710 and older cards need proprietary drivers for best performance
+- **Update flow**: not yet tested on hardware
 
 ## Key decisions
 
-- **PIUIO**: XSanity reads PIUIO directly via libusb. No kernel module or userspace bridge needed.
-- **Audio**: ALSA only. PulseAudio/PipeWire masked. ALSA capture paths muted at boot to prevent loopback hum.
-- **System mode hotkeys**: evdev-level watcher reads `/dev/input/*` directly — cannot be blocked by X11 grabs.
-- **pumptools**: installed at `/opt/pumptools/` for legacy PIU game support. Hook map in `piu-launch.sh`.
-- **Installer**: squashfs live-boot approach; installer triggered by `install=clean|update` kernel param. `install=update-yes` skips confirmation (used by `make qemu-update`).
+- **PIUIO**: XSanity reads PIUIO directly via libusb. No kernel module or userspace bridge needed. Confirmed via `/sys/bus/usb/drivers/usbhid/` — PIUIO not bound.
+- **Audio**: ALSA only. PulseAudio/PipeWire masked. Capture paths muted at boot.
+- **System mode hotkeys**: evdev-level watcher reads `/dev/input/*` directly — cannot be blocked by X11 grabs. Does NOT grab devices (keyboards pass through to XSanity normally).
+- **Installer**: squashfs live-boot approach; installer triggered by `install=clean|update` kernel param.
+- **Songs**: on p3 (`/mnt/xsanity/Songs/`), preserved across updates. Win+S copies from USB.
 
 ## Disk layout
 
@@ -48,17 +55,14 @@ Branch: **trixie-xlibre** (Debian 13, kernel 6.x). Last updated: 2026-05-04.
 | p2 | 8 GB | `/` | System rootfs (re-flashed on update) |
 | p3 | rest | `/mnt/xsanity` | XSanity + Songs + Save + Cache (preserved on update) |
 
-XSanity is excluded from the p2 squashfs extraction and written directly to p3 during clean install.
-
 ## Build
 
 ```bash
 make iso \
   DEBIAN_ISO=debian-13.x-amd64-DVD-1.iso \
   "XSANITY_DIR=XSanity 0.96.0/XSanity" \
-  VERSION=v0.1-rc2 \
+  VERSION=v0.1-rc5 \
   GPU=nouveau
 ```
 
-Cached Docker build (~5 min). Fresh build (`NO_CACHE=1`) ~15 min.
-No kernel module compilation (removed — PIUIO is not HID; usbhid patch had no effect on gameplay input).
+Cached Docker build (~5 min). Fresh build (`NO_CACHE=1`) ~15 min. ISO ~9.8G.

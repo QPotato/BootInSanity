@@ -31,12 +31,15 @@ echo "==> kernel target: $KVER (${KMAJ}.${KMIN})"
 HEADERS="/usr/src/linux-headers-${KVER}"
 [[ -d "$HEADERS" ]] || { echo "ERROR: $HEADERS missing" >&2; exit 1; }
 
-# Install the matching linux-source tarball (force reinstall to get tarball
-# even on a cached chroot where apt cleaned it away).
+# Install the matching linux-source tarball.
+# Purge first so stale dpkg state from a cached chroot doesn't block download
+# (apt --reinstall fails when the registered version drifts from current repo).
 SOURCE_PKG="linux-source-${KMAJ}.${KMIN}"
-apt-get install -y --reinstall --no-install-recommends "$SOURCE_PKG"
-
 TARBALL="/usr/src/${SOURCE_PKG}.tar.xz"
+if [[ ! -f "$TARBALL" ]]; then
+    apt-get remove --purge -y "$SOURCE_PKG" 2>/dev/null || true
+    apt-get install -y --no-install-recommends "$SOURCE_PKG"
+fi
 [[ -f "$TARBALL" ]] || { echo "ERROR: $TARBALL missing after install" >&2; exit 1; }
 
 SRC="/usr/src/${SOURCE_PKG}"

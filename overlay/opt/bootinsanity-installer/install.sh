@@ -146,32 +146,41 @@ MNT=/mnt/install-target
 mkdir -p "$MNT"
 mount "$P2" "$MNT"
 
-echo "==> Restoring rootfs from squashfs (this takes a few minutes)"
 SQUASHFS=/run/live/medium/live/filesystem.squashfs
 [[ -f "$SQUASHFS" ]] || { err "squashfs not found at $SQUASHFS"; exit 1; }
 
-if [[ "$MODE" == "update" ]]; then
-    # Extract rootfs then drop the xsanity tree — user data lives on p3.
-    # (unsquashfs exclude flags vary by version; extract-then-delete is reliable.)
-    unsquashfs -f -d "$MNT" "$SQUASHFS"
-    rm -rf "$MNT/mnt/xsanity"
-    mkdir -p "$MNT/mnt/xsanity"
-else
-    unsquashfs -f -d "$MNT" "$SQUASHFS"
-    # In clean mode, XSanity files were extracted to p2:/mnt/xsanity.
-    # Move them onto p3 so they live on the user-data partition.
-    echo "==> Moving XSanity to data partition ($P3)"
-    mount "$P3" /mnt/xsanity-tmp 2>/dev/null || {
-        mkdir -p /mnt/xsanity-tmp
-        mount "$P3" /mnt/xsanity-tmp
-    }
-    if [[ -d "$MNT/mnt/xsanity" ]] && [[ -n "$(ls -A "$MNT/mnt/xsanity" 2>/dev/null)" ]]; then
-        rsync -a --remove-source-files "$MNT/mnt/xsanity/" /mnt/xsanity-tmp/
-        find "$MNT/mnt/xsanity" -type d -empty -delete 2>/dev/null || true
-        mkdir -p "$MNT/mnt/xsanity"
+# XSanity lives in the squashfs at mnt/xsanity/ for live-boot, but must land
+# on p3 (sp-data) for the installed system. p2 (8 GB) cannot hold both rootfs
+# and XSanity, so we exclude mnt/xsanity from the p2 extraction and write it
+# directly to p3 (clean install) or leave p3 untouched (update).
+#
+# unsquashfs -excludes SQUASHFS PATTERN... excludes matching paths.
+
+echo "==> Extracting rootfs to $P2 (excluding XSanity)"
+unsquashfs -f -d "$MNT" -excludes "$SQUASHFS" "mnt/xsanity"
+mkdir -p "$MNT/mnt/xsanity"   # mount point for p3
+
+if [[ "$MODE" == "clean" ]]; then
+    echo "==> Extracting XSanity to $P3"
+    SP_DATA=/mnt/sp-data
+    mkdir -p "$SP_DATA"
+    mount "$P3" "$SP_DATA"
+
+    # Extract xsanity into a staging dir ON p3 (same fs → mv is instant, no copy).
+    STAGE="$SP_DATA/.extract-stage"
+    mkdir -p "$STAGE"
+    unsquashfs -f -d "$STAGE" "$SQUASHFS" "mnt/xsanity"
+
+    # Move contents from stage/mnt/xsanity/ to p3 root.
+    if [[ -d "$STAGE/mnt/xsanity" ]]; then
+        find "$STAGE/mnt/xsanity" -maxdepth 1 -mindepth 1 \
+            -exec mv -t "$SP_DATA" {} +
     fi
-    umount /mnt/xsanity-tmp
-    rmdir /mnt/xsanity-tmp 2>/dev/null || true
+    rm -rf "$STAGE"
+    umount "$SP_DATA"
+    rmdir "$SP_DATA" 2>/dev/null || true
+else
+    echo "    Update mode: $P3 (XSanity + Songs) untouched."
 fi
 
 # Mount p1 ESP for grub-install

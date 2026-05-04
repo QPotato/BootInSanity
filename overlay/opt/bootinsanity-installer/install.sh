@@ -166,17 +166,15 @@ if [[ "$MODE" == "clean" ]]; then
     mkdir -p "$SP_DATA"
     mount "$P3" "$SP_DATA"
 
-    # Extract xsanity into a staging dir ON p3 (same fs → mv is instant, no copy).
-    STAGE="$SP_DATA/.extract-stage"
-    mkdir -p "$STAGE"
-    unsquashfs -f -d "$STAGE" "$SQUASHFS" "mnt/xsanity"
-
-    # Move contents from stage/mnt/xsanity/ to p3 root.
-    if [[ -d "$STAGE/mnt/xsanity" ]]; then
-        find "$STAGE/mnt/xsanity" -maxdepth 1 -mindepth 1 \
+    # Extract with path prefix mnt/xsanity/ into p3, then mv contents to p3
+    # root (same filesystem → mv is O(1), no data copy).
+    unsquashfs -f -d "$SP_DATA" "$SQUASHFS" "mnt/xsanity"
+    if [[ -d "$SP_DATA/mnt/xsanity" ]]; then
+        find "$SP_DATA/mnt/xsanity" -maxdepth 1 -mindepth 1 \
             -exec mv -t "$SP_DATA" {} +
+        rmdir "$SP_DATA/mnt/xsanity" "$SP_DATA/mnt" 2>/dev/null || true
     fi
-    rm -rf "$STAGE"
+
     umount "$SP_DATA"
     rmdir "$SP_DATA" 2>/dev/null || true
 else

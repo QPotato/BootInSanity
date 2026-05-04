@@ -1,6 +1,5 @@
 # i3 config file (v4)
-# 5PanelOS minimal i3 config — kiosk mode for XSanity.
-# Phase 4 will expand with system-mode keybinds (Win+M, Win+R, etc).
+# BootInSanity kiosk config — XSanity fullscreen with system-mode escape hatch.
 
 set $mod Mod4
 
@@ -17,11 +16,19 @@ hide_edge_borders     both
 # Autostart XSanity launcher.
 exec --no-startup-id /opt/bootinsanity/launch.sh
 
-# Minimal escape hatches (Phase 4 expands these).
+# ---------------------------------------------------------------------------
+# System mode — Win+F4 drops to desktop (kills XSanity crash-loop).
+# ---------------------------------------------------------------------------
+bindsym $mod+F4      exec --no-startup-id /opt/bootinsanity/system-mode/exit-to-desktop.sh
+
+# ---------------------------------------------------------------------------
+# Win+key shortcuts (available in system mode and kiosk mode).
+# ---------------------------------------------------------------------------
 bindsym $mod+Return  exec --no-startup-id lxterminal
-bindsym $mod+q       kill
+bindsym $mod+m       exec --no-startup-id /opt/bootinsanity/system-mode/configure-memcards.sh
+bindsym $mod+r       exec --no-startup-id /opt/bootinsanity/system-mode/reset-xsanity.sh
+bindsym $mod+v       exec --no-startup-id /opt/bootinsanity/system-mode/volume-mixer.sh
+bindsym $mod+e       exec --no-startup-id /opt/bootinsanity/system-mode/polling-rate.sh
+bindsym $mod+x       exec --no-startup-id /opt/bootinsanity/system-mode/expand-p3.sh
 bindsym $mod+b       exec --no-startup-id systemctl reboot
 bindsym $mod+p       exec --no-startup-id systemctl poweroff
-
-# Force fullscreen for everything we launch.
-for_window [class=".*"] fullscreen enable

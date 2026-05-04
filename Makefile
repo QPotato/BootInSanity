@@ -27,17 +27,13 @@ DOCKER_RUN = docker run --rm --privileged \
 TARGET_DISK := $(BUILD_DIR)/qemu-target.qcow2
 TARGET_SIZE ?= 16G
 
-# Optional: path to directory containing PIU .img.gz files.
-# When set, shared into QEMU guest via virtfs at /mnt/piu-host for testing.
-PIU_DIR     ?= $(ROOT)/PIU
-
-.PHONY: help builder iso qemu qemu-install qemu-installed target-disk shell clean distclean
+.PHONY: help builder iso qemu qemu-install qemu-installed qemu-update target-disk shell clean distclean
 
 help:
 	@echo "BootInSanity build targets"
 	@echo ""
 	@echo "  make builder                     build Docker builder image"
-	@echo "  make iso DEBIAN_ISO=<path>       build BootInSanity installer ISO"
+	@echo "  make iso DEBIAN_ISO=<path>       build BootInSanity installer ISO (Debian 13 DVD-1)"
 	@echo "      [XSANITY_DIR=<path>]         (Phase 1+; not required in Phase 0)"
 	@echo "      [OUTPUT=<path>]              default: build/bootinsanity-installer.iso"
 	@echo "      [VERSION=<string>]           default: dev"
@@ -45,6 +41,7 @@ help:
 	@echo "  make qemu                        boot \$$OUTPUT in qemu (live mode)"
 	@echo "  make qemu-install                boot ISO + virtio target disk for installer"
 	@echo "  make qemu-installed              boot from installed target disk (no ISO)"
+	@echo "  make qemu-update                 boot ISO in update mode (preserves target disk p3)"
 	@echo "  make target-disk                 create empty qcow2 target disk"
 	@echo "  make shell                       drop into builder container"
 	@echo "  make clean                       remove work + build dirs"
@@ -88,7 +85,6 @@ qemu:
 	    -device intel-hda -device hda-output,audiodev=snd0 \
 	    -device virtio-net,netdev=n0 -netdev user,id=n0,hostfwd=tcp::2222-:22 \
 	    -usb -device usb-kbd -device usb-tablet \
-	    $$([ -d "$(PIU_DIR)" ] && echo "-virtfs local,path=$(PIU_DIR),mount_tag=piu-host,security_model=none")
 
 target-disk:
 	@mkdir -p $(BUILD_DIR)
@@ -111,7 +107,6 @@ qemu-install: target-disk
 	    -device intel-hda -device hda-output,audiodev=snd0 \
 	    -device virtio-net,netdev=n0 -netdev user,id=n0,hostfwd=tcp::2222-:22 \
 	    -usb -device usb-kbd -device usb-tablet \
-	    $$([ -d "$(PIU_DIR)" ] && echo "-virtfs local,path=$(PIU_DIR),mount_tag=piu-host,security_model=none")
 
 # Boot from the installed disk (no ISO). Run after qemu-install completes.
 qemu-installed:
@@ -126,7 +121,6 @@ qemu-installed:
 	    -device intel-hda -device hda-output,audiodev=snd0 \
 	    -device virtio-net,netdev=n0 -netdev user,id=n0,hostfwd=tcp::2222-:22 \
 	    -usb -device usb-kbd -device usb-tablet \
-	    $$([ -d "$(PIU_DIR)" ] && echo "-virtfs local,path=$(PIU_DIR),mount_tag=piu-host,security_model=none")
 
 shell: builder
 	docker run --rm -it --privileged \
@@ -138,3 +132,24 @@ clean:
 
 distclean: clean
 	-docker rmi $(IMAGE_NAME)
+
+qemu-update:
+	@if [ ! -f "$(OUTPUT)" ]; then \
+	    echo "ERROR: $(OUTPUT) not found. Run 'make iso' first."; exit 1; fi
+	@if [ ! -f "$(TARGET_DISK)" ]; then \
+	    echo "ERROR: $(TARGET_DISK) not found. Run 'make qemu-install' first."; exit 1; fi
+	xorriso -osirrox on -indev "$(OUTPUT)" \
+	    -extract /live/vmlinuz /tmp/bis-vmlinuz \
+	    -extract /live/initrd  /tmp/bis-initrd 2>/dev/null
+	qemu-system-x86_64 -enable-kvm -m 4G -smp 2 \
+	    -kernel /tmp/bis-vmlinuz \
+	    -initrd /tmp/bis-initrd \
+	    -append "boot=live install=update-yes quiet" \
+	    -cdrom $(OUTPUT) \
+	    -drive file=$(TARGET_DISK),if=virtio,format=qcow2 \
+	    -device virtio-vga,xres=1280,yres=720 \
+	    -display gtk,zoom-to-fit=on \
+	    -audiodev pa,id=snd0 \
+	    -device intel-hda -device hda-output,audiodev=snd0 \
+	    -device virtio-net,netdev=n0 -netdev user,id=n0,hostfwd=tcp::2222-:22 \
+	    -usb -device usb-kbd -device usb-tablet \

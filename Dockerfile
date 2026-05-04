@@ -1,4 +1,4 @@
-FROM debian:bullseye-slim
+FROM debian:trixie-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -10,7 +10,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         mtools dosfstools \
         squashfs-tools \
         parted \
-        partclone \
         zstd xz-utils \
         ca-certificates \
         file kmod \

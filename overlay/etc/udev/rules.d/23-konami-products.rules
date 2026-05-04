@@ -1,6 +1,0 @@
-#python2
-SUBSYSTEMS=="usb", ATTRS{idVendor}=="0000", ATTRS{idProduct}=="7305", OWNER="pump", GROUP="pump", MODE="0660"
-
-#python3 chimera / dragon
-SUBSYSTEMS=="usb", ATTRS{idVendor}=="1ccf", ATTRS{idProduct}=="8008", OWNER="pump", GROUP="pump", MODE="0660"
-SUBSYSTEMS=="usb", ATTRS{idVendor}=="0000", ATTRS{idProduct}=="5731", OWNER="pump", GROUP="pump", MODE="0660"

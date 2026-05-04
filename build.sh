@@ -1,12 +1,13 @@
 #!/bin/bash
-# BootInSanity build script
+# BootInSanity build script — trixie-xlibre branch
 #
-# Phase 0: bare Debian 11 live ISO bootable in QEMU.                 [DONE]
-# Phase 1: + X11 + i3 + ALSA + autologin + XSanity injection.        [CURRENT]
-# Phase 2: Clonezilla-style installer, 3-partition install.
-# Phase 3: NVIDIA legacy auto-pick, usbhid 1ms, PIUIO/LXIO.
-# Phase 4: System mode (Win+key shortcuts).
-# Phase 5: Update flow + branding polish.
+# Target: Debian 13 (trixie) + 6.x kernel + XSanity
+#
+# Phase 0+1: Debian 13 live ISO + XSanity autostart.
+# Phase 2:   Installer (clean + update), 3-partition layout.
+# Phase 3:   PIUIO/LXIO udev. NVIDIA legacy TBD.
+# Phase 4:   System mode (evdev hotkeys, Win+key shortcuts).
+# Phase 5:   Branding polish.
 
 set -euo pipefail
 
@@ -15,7 +16,7 @@ usage() {
 Usage: build.sh [OPTIONS]
 
 Required (interactive prompt if absent and stdin is a TTY):
-  --debian-iso PATH       Debian 11 DVD ISO (debian-11.x-amd64-DVD-1.iso)
+  --debian-iso PATH       Debian 13 DVD ISO (debian-13.x-amd64-DVD-1.iso)
   --output PATH           Output ISO path
 
 Optional:
@@ -26,12 +27,12 @@ Optional:
   --gpu TYPE              GPU driver baked in (default: nouveau)
                           Values: nouveau | 340 | 390 | 470
                             nouveau  - in-tree open-source (works for all)
-                            340      - nvidia-legacy-340xx-driver
-                                       (8400GS / 9300GS / GT210 / GT220)
-                            390      - nvidia-legacy-390xx-driver
-                                       (GT4xx / GT5xx / GT610 Fermi)
-                            470      - nvidia-driver (Kepler GT630/GT710+)
-                          One ISO per GPU family — rebuild per cabinet.
+                            340      - legacy 340xx (community pkg, TBD)
+                            390      - legacy 390xx (community pkg, TBD)
+                            470      - legacy 470xx (community pkg, TBD)
+                          Note: only nouveau works on trixie today.
+                          Community NVIDIA packages planned; 340/390/470
+                          will error until implemented.
   --no-cache              Rebuild chroot from scratch
   --debug                 Drop into chroot shell before ISO-pack
   -h, --help              Show this help
@@ -72,7 +73,7 @@ prompt_if_missing() {
     fi
 }
 
-prompt_if_missing DEBIAN_ISO "Path to Debian 11 DVD ISO"
+prompt_if_missing DEBIAN_ISO "Path to Debian 13 DVD ISO"
 prompt_if_missing OUTPUT     "Output ISO path"
 
 [[ -n "$DEBIAN_ISO" ]] || { echo "ERROR: --debian-iso required" >&2; exit 1; }
@@ -129,19 +130,19 @@ bind_chroot_mounts() {
     mountpoint -q "${CHROOT}/dev/pts"  || mount --bind /dev/pts "${CHROOT}/dev/pts"
 }
 
-echo "==> [1/9] Mounting Debian ISO"
+echo "==> [1/8] Mounting Debian ISO"
 mount -o loop,ro "$DEBIAN_ISO" "$DEBIAN_MNT"
 if [[ -f "${DEBIAN_MNT}/.disk/info" ]]; then
     DISK_INFO="$(cat "${DEBIAN_MNT}/.disk/info")"
     echo "    .disk/info: $DISK_INFO"
-    if [[ "$DISK_INFO" != *"Debian GNU/Linux 11"* ]]; then
-        echo "    WARN: not a Debian 11 ISO (proceeding anyway)" >&2
+    if [[ "$DISK_INFO" != *"Debian GNU/Linux 13"* ]]; then
+        echo "    WARN: not a Debian 13 ISO (proceeding anyway)" >&2
     fi
 else
     echo "    WARN: .disk/info missing — may not be a Debian DVD ISO" >&2
 fi
 
-echo "==> [2/9] Building chroot via mmdebstrap"
+echo "==> [2/8] Building chroot via mmdebstrap"
 if [[ "$NO_CACHE" -eq 0 ]] && compgen -G "${CHROOT}/boot/vmlinuz-*" >/dev/null; then
     echo "    Using cached chroot at $CHROOT (--no-cache to rebuild)"
 else
@@ -163,9 +164,9 @@ else
         xserver-xorg-core
         xserver-xorg-input-libinput xserver-xorg-input-evdev
         xserver-xorg-video-modesetting xserver-xorg-video-fbdev xserver-xorg-video-vesa
-        xinit xauth xterm dbus-x11 x11-xserver-utils
+        xinit xauth dbus-x11 x11-xserver-utils
         # Window manager
-        i3 i3-wm
+        i3-wm
         # Audio (ALSA only — no PulseAudio/PipeWire for lowest latency)
         alsa-utils libasound2-plugins
         # Networking + time
@@ -174,52 +175,54 @@ else
         openssh-server
         # Terminal for missing-xsanity screen + system mode
         lxterminal
-        # Fonts (i3 + xterm need at least one font)
-        fonts-dejavu-core xfonts-base
+        # Fonts
+        fonts-dejavu-core
         # Mesa userland (OpenGL) — XSanity links against libGL
         libgl1-mesa-dri libgl1
         # Phase 2 installer: partition / format / unsquashfs / GRUB
         parted squashfs-tools dosfstools e2fsprogs rsync util-linux
         grub-pc-bin grub-efi-amd64-bin grub2-common grub-common
         os-prober
-        # loop-mount + extraction for PIU .img.gz images (util-linux already included)
-        # Python + evdev for PIUIO2Key-Linux and launcher UI
-        python3 python3-evdev python3-pygame
-        # curl for pumptools download at build time
-        curl unzip
-        # i386 multiarch libs for pumptools installed in step [4b] after
-        # dpkg --add-architecture i386 (cannot be listed here in mmdebstrap INCLUDE)
+        # Phase 4 system mode
+        pcmanfm evtest cloud-guest-utils usbutils
+        # Python + evdev for hotkey watcher
+        python3 python3-evdev
     )
     case "$GPU" in
-        340) INCLUDE+=( nvidia-legacy-340xx-driver nvidia-detect ) ;;
-        390) INCLUDE+=( nvidia-legacy-390xx-driver nvidia-detect ) ;;
-        470) INCLUDE+=( nvidia-driver           nvidia-detect ) ;;
-        nouveau) ;;  # nothing extra; xserver-xorg-video-modesetting handles it
+        nouveau) ;;  # in-tree modesetting; no extra packages
+        340|390|470)
+            # Community NVIDIA legacy packages for trixie not yet implemented.
+            # Will be added when community repos are set up (see PLAN.md trixie section).
+            echo "ERROR: GPU=$GPU not yet supported on trixie. Use GPU=nouveau." >&2
+            exit 1
+            ;;
     esac
     INCLUDE_CSV=$(IFS=,; echo "${INCLUDE[*]}")
 
-    # contrib + non-free needed for nvidia-* packages.
+    # non-free-firmware is a separate component in trixie (split from non-free in bookworm).
     mmdebstrap \
         --variant=minbase \
         --architectures=amd64 \
-        --components=main,contrib,non-free \
+        --components=main,contrib,non-free,non-free-firmware \
         --include="$INCLUDE_CSV" \
-        bullseye \
+        trixie \
         "$CHROOT" \
-        "deb [trusted=yes] copy://${DEBIAN_MNT} bullseye main contrib" \
-        "deb [trusted=yes] http://deb.debian.org/debian bullseye main contrib non-free"
+        "deb [trusted=yes] copy://${DEBIAN_MNT} trixie main contrib" \
+        "deb [trusted=yes] http://deb.debian.org/debian trixie main contrib non-free non-free-firmware"
 fi
 
-echo "==> [3/9] Applying rootfs overlay"
+echo "==> [3/8] Applying rootfs overlay"
 if [[ -d "$OVERLAY" ]]; then
     rsync -a "${OVERLAY}/" "${CHROOT}/"
     # Overlay files are copied with host-side UIDs. Reset system paths to
     # root:root (sudo refuses /etc/sudoers.d unless root-owned). Home dirs
     # get pump:pump after user creation in step [4/9].
     chown -R 0:0 "${CHROOT}/etc" "${CHROOT}/opt"
-    chmod 0755 "${CHROOT}/opt/bootinsanity/"*.sh
+    chmod 0755 "${CHROOT}/opt/bootinsanity/"*.sh "${CHROOT}/opt/bootinsanity/"*.py 2>/dev/null || true
+    chmod 0755 "${CHROOT}/opt/bootinsanity/system-mode/"*.sh 2>/dev/null || true
     chmod 0755 "${CHROOT}/opt/bootinsanity-installer/"*.sh 2>/dev/null || true
     chmod 0440 "${CHROOT}/etc/sudoers.d/pump"
+    chmod 0600 "${CHROOT}/etc/NetworkManager/system-connections/"*.nmconnection 2>/dev/null || true
 else
     echo "    WARN: overlay/ directory missing — skipping" >&2
 fi
@@ -228,9 +231,9 @@ fi
 # with network-only sources usable from inside the chroot at build time
 # AND on the installed system at runtime.
 cat > "${CHROOT}/etc/apt/sources.list" <<'EOF'
-deb http://deb.debian.org/debian              bullseye           main contrib non-free
-deb http://deb.debian.org/debian              bullseye-updates   main contrib non-free
-deb http://security.debian.org/debian-security bullseye-security main contrib non-free
+deb http://deb.debian.org/debian               trixie           main contrib non-free non-free-firmware
+deb http://deb.debian.org/debian               trixie-updates   main contrib non-free non-free-firmware
+deb http://security.debian.org/debian-security trixie-security  main contrib non-free non-free-firmware
 EOF
 
 # Bake hostname + version banner.
@@ -248,7 +251,7 @@ ff02::1     ip6-allnodes
 ff02::2     ip6-allrouters
 EOF
 
-echo "==> [4/9] Configuring system inside chroot"
+echo "==> [4/8] Configuring system inside chroot"
 bind_chroot_mounts
 
 # Create pump user (idempotent).
@@ -268,6 +271,7 @@ chroot_run systemctl enable NetworkManager.service
 chroot_run systemctl enable chrony.service
 chroot_run systemctl enable getty@tty1.service
 chroot_run systemctl enable bootinsanity-installer.service
+chroot_run systemctl enable bootinsanity-hotkeys.service
 
 # Mask audio servers we are NOT using (ALSA only).
 for svc in pulseaudio.service pulseaudio.socket pipewire.service pipewire.socket \
@@ -280,54 +284,14 @@ chroot_run sed -i 's/^# *en_US\.UTF-8/en_US.UTF-8/' /etc/locale.gen
 chroot_run locale-gen
 chroot_run update-locale LANG=en_US.UTF-8
 
-echo "==> [4b/9] Installing pumptools (PIU legacy game compatibility layer)"
-PUMPTOOLS_VER="1.14"
-PUMPTOOLS_URL="https://github.com/pumpitupdev/pumptools/releases/download/latest/pumptools-${PUMPTOOLS_VER}.zip"
-PUMPTOOLS_DEST="${CHROOT}/opt/pumptools"
-mkdir -p "$PUMPTOOLS_DEST"
 
-# Enable i386 multiarch so 32-bit pumptools hooks + game binaries can run.
-chroot_run dpkg --add-architecture i386
-chroot_run apt-get update -qq
-chroot_run apt-get install -y --no-install-recommends \
-    libc6-i386 lib32stdc++6 \
-    libx11-6:i386 libasound2:i386 \
-    libgl1-mesa-dri:i386 libglu1-mesa:i386 \
-    libcurl4:i386 || true
 
-# Download pumptools prebuilt release into chroot.
-if curl -fsSL --max-time 120 -o "${PUMPTOOLS_DEST}/pumptools.zip" "$PUMPTOOLS_URL"; then
-    chroot_run bash -c "cd /opt/pumptools && unzip -q pumptools.zip && rm pumptools.zip"
-    echo "    pumptools v${PUMPTOOLS_VER} installed at /opt/pumptools"
-else
-    echo "    WARN: pumptools download failed — PIU launch will not work" >&2
-    echo "    URL tried: $PUMPTOOLS_URL" >&2
-fi
 
-echo "==> [4c/9] Building out-of-tree kernel modules (usbhid 1ms + piuio)"
-KVER_CHROOT="$(ls -1 "${CHROOT}/boot/" | grep '^vmlinuz-' | sort -V | tail -1 | sed 's|^vmlinuz-||')"
-KMAJ="${KVER_CHROOT%%.*}"
-if [[ "$KMAJ" -le 5 ]]; then
-    PATCH_SRC="${ROOT_DIR}/kernel/usbhid-1ms.patch"
-    BUILDER_SRC="${ROOT_DIR}/kernel/build-kmods.sh"
-    if [[ -f "$PATCH_SRC" ]] && [[ -f "$BUILDER_SRC" ]]; then
-        cp "$PATCH_SRC"   "${CHROOT}/tmp/usbhid-1ms.patch"
-        cp "$BUILDER_SRC" "${CHROOT}/tmp/build-kmods.sh"
-        chmod +x "${CHROOT}/tmp/build-kmods.sh"
-        chroot_run /tmp/build-kmods.sh
-        rm -f "${CHROOT}/tmp/usbhid-1ms.patch" "${CHROOT}/tmp/build-kmods.sh"
-    else
-        echo "    WARN: kernel/build-kmods.sh missing — skipping" >&2
-    fi
-else
-    echo "    Kernel $KVER_CHROOT (6.x+): kmod build skipped (usbhid patch not yet ported)"
-fi
-
-echo "==> [5/9] Injecting XSanity"
+echo "==> [5/8] Injecting XSanity"
 if [[ -n "$XSANITY_DIR" ]]; then
     echo "    Copying $XSANITY_DIR → /mnt/xsanity/"
     mkdir -p "${CHROOT}/mnt/xsanity"
-    rsync -a "${XSANITY_DIR%/}/" "${CHROOT}/mnt/xsanity/"
+    rsync -a --exclude='Cache/' --exclude='Save/' "${XSANITY_DIR%/}/" "${CHROOT}/mnt/xsanity/"
     chroot_run chown -R pump:pump /mnt/xsanity
     chmod +x "${CHROOT}/mnt/xsanity/XSanity.sh" 2>/dev/null || true
 
@@ -362,7 +326,19 @@ cleanup
 mkdir -p "$DEBIAN_MNT"
 mount -o loop,ro "$DEBIAN_ISO" "$DEBIAN_MNT"  # remount for any later steps
 
-echo "==> [6/9] Building squashfs"
+echo "==> [6/8] Building squashfs"
+# Purge old kernel versions — keep only the newest. Cached chroot may have
+# accumulated stale kernels from prior builds; each adds ~300MB to the ISO.
+LATEST_KVER="$(ls -1 "${CHROOT}/boot/" | grep '^vmlinuz-' | sort -V | tail -1 | sed 's|^vmlinuz-||')"
+for old in "${CHROOT}/boot/vmlinuz-"*; do
+    ver="${old##*/vmlinuz-}"
+    [[ "$ver" != "$LATEST_KVER" ]] && chroot_run apt-get purge -y "linux-image-${ver}" 2>/dev/null || true
+done
+chroot_run apt-get autoremove -y 2>/dev/null || true
+
+# Write version stamp into rootfs and ISO root for installer to read.
+echo "$VERSION" > "${CHROOT}/etc/bootinsanity-version"
+echo "GPU=$GPU" >> "${CHROOT}/etc/bootinsanity-version"
 mkdir -p "${ISO_STAGE}/live"
 rm -f "${ISO_STAGE}/live/filesystem.squashfs"
 # Note: do NOT exclude /boot — Phase 2 installer extracts the squashfs onto
@@ -373,14 +349,17 @@ rm -f "${ISO_STAGE}/live/filesystem.squashfs"
 mksquashfs "$CHROOT" "${ISO_STAGE}/live/filesystem.squashfs" \
     -comp xz -noappend
 
-echo "==> [7/9] Copying kernel + initrd"
+# Also write version to ISO root so installer can read it before unsquashfs.
+printf 'VERSION=%s\nGPU=%s\n' "$VERSION" "$GPU" > "${ISO_STAGE}/bootinsanity.meta"
+
+echo "==> [7/8] Copying kernel + initrd"
 KVER="$(ls -1 "${CHROOT}/boot/" | grep '^vmlinuz-' | sort -V | tail -1 | sed 's|^vmlinuz-||')"
 [[ -n "$KVER" ]] || { echo "ERROR: no kernel found in chroot" >&2; exit 1; }
 echo "    kernel version: $KVER"
 cp "${CHROOT}/boot/vmlinuz-${KVER}"   "${ISO_STAGE}/live/vmlinuz"
 cp "${CHROOT}/boot/initrd.img-${KVER}" "${ISO_STAGE}/live/initrd"
 
-echo "==> [8/9] Writing bootloaders (BIOS via isolinux, UEFI via grub)"
+echo "==> [8/8] Writing bootloaders (BIOS via isolinux, UEFI via grub)"
 
 # BIOS: isolinux
 mkdir -p "${ISO_STAGE}/isolinux"
@@ -420,17 +399,17 @@ cat > "${ISO_STAGE}/boot/grub/grub.cfg" <<EOF
 set timeout=10
 set default=0
 
-menuentry "BootInSanity — Clean Install (wipes target disk)" {
+menuentry "BootInSanity $VERSION — Clean Install (wipes target disk)" {
     linux  /live/vmlinuz boot=live install=clean quiet
     initrd /live/initrd
 }
 
-menuentry "BootInSanity — Update (re-flash rootfs, preserve XSanity + Songs)" {
+menuentry "BootInSanity $VERSION — Update (re-flash rootfs, preserve XSanity + Songs)" {
     linux  /live/vmlinuz boot=live install=update quiet
     initrd /live/initrd
 }
 
-menuentry "BootInSanity — Live Boot (no install)" {
+menuentry "BootInSanity $VERSION — Live Boot (no install)" {
     linux  /live/vmlinuz boot=live quiet
     initrd /live/initrd
 }

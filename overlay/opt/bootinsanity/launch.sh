@@ -21,10 +21,29 @@ if [[ ! -x "$XSANITY_SH" ]]; then
     exec /opt/bootinsanity/missing-xsanity.sh
 fi
 
-# Pre-seed Preferences.ini with ALSA backend if absent.
+# Configure ALSA output — ALC662 (MK9) boots with outputs muted.
+amixer set Master   unmute  2>/dev/null || true
+amixer set Master   100%    2>/dev/null || true
+amixer set PCM      unmute  2>/dev/null || true
+amixer set Speaker  unmute  2>/dev/null || true
+amixer set Headphone unmute 2>/dev/null || true
+
+# Mute all capture/input paths to prevent loopback noise on the speakers.
+# ALC662: Line-In and Mic loopback are enabled by default and cause audible hum.
+amixer set 'Line In'  mute 2>/dev/null || true
+amixer set 'Mic'      mute 2>/dev/null || true
+amixer set 'Mic Boost' 0   2>/dev/null || true
+amixer set 'CD'       mute 2>/dev/null || true
+amixer set 'Capture'  0    2>/dev/null || true
+amixer set 'Capture'  nocap 2>/dev/null || true
+amixer set 'Internal Mic' mute 2>/dev/null || true
+
+# Ensure Preferences.ini exists with correct baseline settings.
+# XSanity writes its own defaults on first run (SoundDrivers=WaveOut, which
+# doesn't work on Linux), so we always enforce the critical keys via sed.
 PREFS="${XSANITY_DIR}/Save/Preferences.ini"
+mkdir -p "${XSANITY_DIR}/Save" 2>/dev/null || true
 if [[ ! -f "$PREFS" ]]; then
-    mkdir -p "${XSANITY_DIR}/Save" 2>/dev/null || true
     cat > "$PREFS" 2>/dev/null <<'EOF' || true
 [Options]
 SoundDrivers=ALSA-sw
@@ -37,6 +56,12 @@ Windowed=0
 FullscreenIsBorderlessWindow=0
 VsyncEnabled=1
 EOF
+else
+    # File exists — patch only the sound keys; preserve everything else.
+    sed -i 's/^SoundDrivers=.*/SoundDrivers=ALSA-sw/' "$PREFS" 2>/dev/null || true
+    # Use default device: on this HW (ALC662 / Intel HDA) ALSA default = plughw:0,0.
+    # Do not force a specific card name — 'default' is portable across hardware.
+    sed -i 's/^SoundDevice=.*/SoundDevice=default/' "$PREFS" 2>/dev/null || true
 fi
 
 CRASH_COUNT=0
@@ -47,20 +72,10 @@ while :; do
     CRASH_COUNT=$((CRASH_COUNT+1))
     echo "=== XSanity exited rc=$rc at $(date) ==="
 
-    # Debug aid: after 3 rapid failures, drop to a terminal so the user
-    # can inspect logs. Phase 4 replaces this with proper system mode.
+    # After 3 rapid crashes enter system mode so the user can inspect logs.
     if [[ $CRASH_COUNT -ge 3 ]]; then
-        echo "=== 3 crashes — opening lxterminal for debug ==="
-        lxterminal -e bash -c "
-            echo 'BootInSanity — XSanity has crashed 3 times.'
-            echo 'Log: /tmp/bootinsanity-launch.log'
-            echo
-            echo 'Press Enter to retry, or Ctrl+D to exit terminal.'
-            tail -n 50 /tmp/bootinsanity-launch.log
-            read line || true
-            exec bash
-        "
-        CRASH_COUNT=0
+        echo "=== 3 crashes — entering system mode ==="
+        exec /opt/bootinsanity/system-mode/exit-to-desktop.sh
     fi
     sleep 1
 done

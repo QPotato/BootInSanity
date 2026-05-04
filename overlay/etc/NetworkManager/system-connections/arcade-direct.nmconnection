@@ -1,0 +1,13 @@
+[connection]
+id=arcade-direct
+type=ethernet
+autoconnect=true
+
+[ethernet]
+
+[ipv4]
+method=manual
+address1=192.168.100.2/24
+
+[ipv6]
+method=disabled

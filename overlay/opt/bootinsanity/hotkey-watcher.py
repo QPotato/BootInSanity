@@ -19,6 +19,7 @@ import os
 
 ACTIONS = {
     evdev.ecodes.KEY_F4:      '/opt/bootinsanity/system-mode/exit-to-desktop.sh',
+    evdev.ecodes.KEY_G:       '/opt/bootinsanity/system-mode/launch-game.sh',
     evdev.ecodes.KEY_R:       '/opt/bootinsanity/system-mode/reset-xsanity.sh',
     evdev.ecodes.KEY_V:       '/opt/bootinsanity/system-mode/volume-mixer.sh',
     evdev.ecodes.KEY_M:       '/opt/bootinsanity/system-mode/configure-memcards.sh',

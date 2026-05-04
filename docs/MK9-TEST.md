@@ -41,6 +41,7 @@ Then: `ssh -o PubkeyAuthentication=no pump@192.168.100.2`
 | Key | Expected |
 |---|---|
 | Win+F4 | Kills XSanity, drops to lxterminal with keybind menu |
+| Win+G | Returns to game (relaunches XSanity from system mode) |
 | Win+Enter | Opens new lxterminal |
 | Win+V | Launches alsamixer |
 | Win+B | Reboots |

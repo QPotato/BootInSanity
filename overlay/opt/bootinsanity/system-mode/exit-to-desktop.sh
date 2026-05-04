@@ -13,8 +13,6 @@ pkill -f "XSanity\.sh" 2>/dev/null || true
 pkill -f "bootinsanity/launch\.sh" 2>/dev/null || true
 pkill -f "xsanity\|stepmania\|openitg" 2>/dev/null || true
 
-sleep 1.0
-
 # Open a terminal pre-loaded with the crash log.
 lxterminal --title="BootInSanity — System Mode" -e bash -c "
     echo '======================================='
@@ -25,6 +23,7 @@ lxterminal --title="BootInSanity — System Mode" -e bash -c "
     echo 'Crash log: $LOG'
     echo ''
     echo 'Keybinds:'
+    echo '  Win+G       Return to game'
     echo '  Win+Enter   New terminal'
     echo '  Win+M       Memory cards (file manager)'
     echo '  Win+R       Reset XSanity settings'

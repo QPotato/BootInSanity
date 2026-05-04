@@ -222,6 +222,7 @@ if [[ -d "$OVERLAY" ]]; then
     chmod 0755 "${CHROOT}/opt/bootinsanity/system-mode/"*.sh 2>/dev/null || true
     chmod 0755 "${CHROOT}/opt/bootinsanity-installer/"*.sh 2>/dev/null || true
     chmod 0440 "${CHROOT}/etc/sudoers.d/pump"
+    chmod 0600 "${CHROOT}/etc/NetworkManager/system-connections/"*.nmconnection 2>/dev/null || true
 else
     echo "    WARN: overlay/ directory missing — skipping" >&2
 fi

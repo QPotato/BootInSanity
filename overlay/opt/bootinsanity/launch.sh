@@ -28,15 +28,16 @@ amixer set PCM    unmute  2>/dev/null || true
 amixer set Speaker unmute 2>/dev/null || true
 amixer set Headphone unmute 2>/dev/null || true
 
-# Pre-seed Preferences.ini with ALSA backend if absent.
-# SoundDevice=dmix matches pumptools hook.conf and works on ALC662 / Intel HDA.
+# Ensure Preferences.ini exists with correct baseline settings.
+# XSanity writes its own defaults on first run (SoundDrivers=WaveOut, which
+# doesn't work on Linux), so we always enforce the critical keys via sed.
 PREFS="${XSANITY_DIR}/Save/Preferences.ini"
+mkdir -p "${XSANITY_DIR}/Save" 2>/dev/null || true
 if [[ ! -f "$PREFS" ]]; then
-    mkdir -p "${XSANITY_DIR}/Save" 2>/dev/null || true
     cat > "$PREFS" 2>/dev/null <<'EOF' || true
 [Options]
 SoundDrivers=ALSA-sw
-SoundDevice=dmix
+SoundDevice=default
 DisplayWidth=1280
 DisplayHeight=720
 DisplayColorDepth=32
@@ -45,6 +46,12 @@ Windowed=0
 FullscreenIsBorderlessWindow=0
 VsyncEnabled=1
 EOF
+else
+    # File exists — patch only the sound keys; preserve everything else.
+    sed -i 's/^SoundDrivers=.*/SoundDrivers=ALSA-sw/' "$PREFS" 2>/dev/null || true
+    # Use default device: on this HW (ALC662 / Intel HDA) ALSA default = plughw:0,0.
+    # Do not force a specific card name — 'default' is portable across hardware.
+    sed -i 's/^SoundDevice=.*/SoundDevice=default/' "$PREFS" 2>/dev/null || true
 fi
 
 CRASH_COUNT=0

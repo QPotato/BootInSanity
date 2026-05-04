@@ -27,10 +27,6 @@ DOCKER_RUN = docker run --rm --privileged \
 TARGET_DISK := $(BUILD_DIR)/qemu-target.qcow2
 TARGET_SIZE ?= 16G
 
-# Optional: path to directory containing PIU .img.gz files.
-# When set, shared into QEMU guest via virtfs at /mnt/piu-host for testing.
-PIU_DIR     ?= $(ROOT)/PIU
-
 .PHONY: help builder iso qemu qemu-install qemu-installed qemu-update target-disk shell clean distclean
 
 help:
@@ -89,7 +85,6 @@ qemu:
 	    -device intel-hda -device hda-output,audiodev=snd0 \
 	    -device virtio-net,netdev=n0 -netdev user,id=n0,hostfwd=tcp::2222-:22 \
 	    -usb -device usb-kbd -device usb-tablet \
-	    $$([ -d "$(PIU_DIR)" ] && echo "-virtfs local,path=$(PIU_DIR),mount_tag=piu-host,security_model=none")
 
 target-disk:
 	@mkdir -p $(BUILD_DIR)
@@ -112,7 +107,6 @@ qemu-install: target-disk
 	    -device intel-hda -device hda-output,audiodev=snd0 \
 	    -device virtio-net,netdev=n0 -netdev user,id=n0,hostfwd=tcp::2222-:22 \
 	    -usb -device usb-kbd -device usb-tablet \
-	    $$([ -d "$(PIU_DIR)" ] && echo "-virtfs local,path=$(PIU_DIR),mount_tag=piu-host,security_model=none")
 
 # Boot from the installed disk (no ISO). Run after qemu-install completes.
 qemu-installed:
@@ -127,7 +121,6 @@ qemu-installed:
 	    -device intel-hda -device hda-output,audiodev=snd0 \
 	    -device virtio-net,netdev=n0 -netdev user,id=n0,hostfwd=tcp::2222-:22 \
 	    -usb -device usb-kbd -device usb-tablet \
-	    $$([ -d "$(PIU_DIR)" ] && echo "-virtfs local,path=$(PIU_DIR),mount_tag=piu-host,security_model=none")
 
 shell: builder
 	docker run --rm -it --privileged \
@@ -160,4 +153,3 @@ qemu-update:
 	    -device intel-hda -device hda-output,audiodev=snd0 \
 	    -device virtio-net,netdev=n0 -netdev user,id=n0,hostfwd=tcp::2222-:22 \
 	    -usb -device usb-kbd -device usb-tablet \
-	    $$([ -d "$(PIU_DIR)" ] && echo "-virtfs local,path=$(PIU_DIR),mount_tag=piu-host,security_model=none")

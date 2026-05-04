@@ -13,9 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         partclone \
         zstd xz-utils \
         ca-certificates \
-        curl \
         file kmod \
-        unzip \
         rsync \
         sudo \
         procps \

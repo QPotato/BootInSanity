@@ -131,7 +131,7 @@ bind_chroot_mounts() {
     mountpoint -q "${CHROOT}/dev/pts"  || mount --bind /dev/pts "${CHROOT}/dev/pts"
 }
 
-echo "==> [1/9] Mounting Debian ISO"
+echo "==> [1/8] Mounting Debian ISO"
 mount -o loop,ro "$DEBIAN_ISO" "$DEBIAN_MNT"
 if [[ -f "${DEBIAN_MNT}/.disk/info" ]]; then
     DISK_INFO="$(cat "${DEBIAN_MNT}/.disk/info")"
@@ -143,7 +143,7 @@ else
     echo "    WARN: .disk/info missing — may not be a Debian DVD ISO" >&2
 fi
 
-echo "==> [2/9] Building chroot via mmdebstrap"
+echo "==> [2/8] Building chroot via mmdebstrap"
 if [[ "$NO_CACHE" -eq 0 ]] && compgen -G "${CHROOT}/boot/vmlinuz-*" >/dev/null; then
     echo "    Using cached chroot at $CHROOT (--no-cache to rebuild)"
 else
@@ -184,19 +184,10 @@ else
         parted squashfs-tools dosfstools e2fsprogs rsync util-linux
         grub-pc-bin grub-efi-amd64-bin grub2-common grub-common
         os-prober
-        # loop-mount + extraction for PIU .img.gz images
-        mount util-linux
-        # Python + evdev + usb for PIUIO2Key-Linux and launcher UI
-        python3 python3-evdev python3-pygame
-        # unzip: needed by pumptools extraction step
-        unzip
         # Phase 4 system mode
         pcmanfm evtest cloud-guest-utils
-        # curl for pumptools download at build time (wget as fallback)
-        curl
-        # 32-bit compat layer (pure amd64 packages; :i386 libs installed in step 4b
-        # after dpkg --add-architecture i386 + apt-get update)
-        libc6-i386 lib32stdc++6
+        # Python + evdev for hotkey watcher
+        python3 python3-evdev
     )
     case "$GPU" in
         nouveau) ;;  # in-tree modesetting; no extra packages
@@ -221,7 +212,7 @@ else
         "deb [trusted=yes] http://deb.debian.org/debian trixie main contrib non-free non-free-firmware"
 fi
 
-echo "==> [3/9] Applying rootfs overlay"
+echo "==> [3/8] Applying rootfs overlay"
 if [[ -d "$OVERLAY" ]]; then
     rsync -a "${OVERLAY}/" "${CHROOT}/"
     # Overlay files are copied with host-side UIDs. Reset system paths to
@@ -260,7 +251,7 @@ ff02::1     ip6-allnodes
 ff02::2     ip6-allrouters
 EOF
 
-echo "==> [4/9] Configuring system inside chroot"
+echo "==> [4/8] Configuring system inside chroot"
 bind_chroot_mounts
 
 # Create pump user (idempotent).
@@ -293,38 +284,10 @@ chroot_run sed -i 's/^# *en_US\.UTF-8/en_US.UTF-8/' /etc/locale.gen
 chroot_run locale-gen
 chroot_run update-locale LANG=en_US.UTF-8
 
-echo "==> [4b/9] Installing pumptools (PIU legacy game compatibility layer)"
-PUMPTOOLS_VER="1.14"
-PUMPTOOLS_URL="https://github.com/pumpitupdev/pumptools/releases/download/latest/pumptools-${PUMPTOOLS_VER}.zip"
-PUMPTOOLS_DEST="${CHROOT}/opt/pumptools"
-mkdir -p "$PUMPTOOLS_DEST"
-
-# Enable i386 multiarch so 32-bit pumptools hooks + game binaries can run.
-chroot_run dpkg --add-architecture i386
-chroot_run apt-get update -qq
-chroot_run apt-get install -y --no-install-recommends \
-    libc6-i386 lib32stdc++6 \
-    libx11-6:i386 libasound2:i386 \
-    libxrandr2:i386 libxi6:i386 libxcursor1:i386 libxinerama1:i386 \
-    libgl1-mesa-dri:i386 libglu1-mesa:i386 \
-    libcurl4:i386 libusb-0.1-4:i386 || true
-
-# Download pumptools prebuilt release into chroot.
-if curl -fsSL --max-time 120 -o "${PUMPTOOLS_DEST}/pumptools.zip" "$PUMPTOOLS_URL"; then
-    # Outer zip extracts hook zips + piueb + docs. Unzip each hook zip so
-    # exchook.so, fexhook.so etc. land flat in /opt/pumptools/.
-    chroot_run bash -c "cd /opt/pumptools && unzip -qo pumptools.zip && rm pumptools.zip && \
-        for z in *.zip; do unzip -qo \"\$z\"; done && rm -f *.zip"
-    echo "    pumptools v${PUMPTOOLS_VER} installed at /opt/pumptools"
-else
-    echo "    WARN: pumptools download failed — PIU launch will not work" >&2
-    echo "    URL tried: $PUMPTOOLS_URL" >&2
-fi
 
 
-echo "==> [4c/9] Kernel modules — skipped (usbhid elsepoll patch not applicable: PIUIO uses libusb, not HID)"
 
-echo "==> [5/9] Injecting XSanity"
+echo "==> [5/8] Injecting XSanity"
 if [[ -n "$XSANITY_DIR" ]]; then
     echo "    Copying $XSANITY_DIR → /mnt/xsanity/"
     mkdir -p "${CHROOT}/mnt/xsanity"
@@ -363,7 +326,7 @@ cleanup
 mkdir -p "$DEBIAN_MNT"
 mount -o loop,ro "$DEBIAN_ISO" "$DEBIAN_MNT"  # remount for any later steps
 
-echo "==> [6/9] Building squashfs"
+echo "==> [6/8] Building squashfs"
 # Write version stamp into rootfs and ISO root for installer to read.
 echo "$VERSION" > "${CHROOT}/etc/bootinsanity-version"
 echo "GPU=$GPU" >> "${CHROOT}/etc/bootinsanity-version"
@@ -380,14 +343,14 @@ mksquashfs "$CHROOT" "${ISO_STAGE}/live/filesystem.squashfs" \
 # Also write version to ISO root so installer can read it before unsquashfs.
 printf 'VERSION=%s\nGPU=%s\n' "$VERSION" "$GPU" > "${ISO_STAGE}/bootinsanity.meta"
 
-echo "==> [7/9] Copying kernel + initrd"
+echo "==> [7/8] Copying kernel + initrd"
 KVER="$(ls -1 "${CHROOT}/boot/" | grep '^vmlinuz-' | sort -V | tail -1 | sed 's|^vmlinuz-||')"
 [[ -n "$KVER" ]] || { echo "ERROR: no kernel found in chroot" >&2; exit 1; }
 echo "    kernel version: $KVER"
 cp "${CHROOT}/boot/vmlinuz-${KVER}"   "${ISO_STAGE}/live/vmlinuz"
 cp "${CHROOT}/boot/initrd.img-${KVER}" "${ISO_STAGE}/live/initrd"
 
-echo "==> [8/9] Writing bootloaders (BIOS via isolinux, UEFI via grub)"
+echo "==> [8/8] Writing bootloaders (BIOS via isolinux, UEFI via grub)"
 
 # BIOS: isolinux
 mkdir -p "${ISO_STAGE}/isolinux"

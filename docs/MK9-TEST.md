@@ -1,61 +1,76 @@
 # MK9 Hardware Test
 
-Specifics for testing BootInSanity on a real MK9 cabinet. Build instructions
-in [README](../README.md).
+Checklist for testing BootInSanity on a real MK9 cabinet.
 
-## Build flag per cabinet GPU
-
-| Cabinet GPU | `GPU=` |
-|---|---|
-| 8300GS / 8400GS / 9300GS / GT210 / GT220 | `340` |
-| GT4xx / GT5xx / GT610 (Fermi) | `390` |
-| GT630 (Kepler) / GT710+ | `470` |
-
-Boot menu defaults to **Clean Install** (10 s timeout). Wipes target disk,
-partitions 3-way, GRUB hybrid BIOS+EFI.
-
-Default credentials: `pump` / `pump`. SSH on port 22.
-
-## Validation (SSH from LAN)
+## Build the ISO
 
 ```bash
-uname -r                                                  # 5.10.0-39-amd64
-lsmod | grep -E 'usbhid|piuio|nvidia'
-cat /sys/module/usbhid/parameters/{kb,js,else,mouse}poll  # all 1
-lspci -k | grep -A2 -i nvidia                             # driver: nvidia
-glxinfo | grep -i 'opengl renderer'                       # not llvmpipe / nouveau
+make iso \
+  DEBIAN_ISO=debian-13.x-amd64-DVD-1.iso \
+  "XSANITY_DIR=XSanity 0.96.0/XSanity" \
+  VERSION=v0.1-rc2 \
+  GPU=nouveau
 ```
 
-In-game: F3 to toggle stats, confirm 60 fps on song select + gameplay.
+Write to USB: `sudo dd if=build/bootinsanity-installer.iso of=/dev/sdX bs=4M status=progress oflag=sync`
 
-## Bug reports — collect
+Default credentials: `pump` / `pump`. SSH port 22.
 
-- `uname -r`, `lsmod`, `/sys/module/usbhid/parameters/elsepoll`
-- `dmesg | grep -iE 'nvidia|piuio|usbhid' | head -50`
-- `grep -E '\(EE\)|\(WW\)' /var/log/Xorg.0.log | head -30`
-- `tail -100 /tmp/bootinsanity-launch.log`
-- FPS observed in-game
-- PIUIO panel + test-menu response
+## SSH via direct ethernet
 
-## Failure modes
+On laptop: `nmcli con add type ethernet ifname <iface> con-name arcade ip4 192.168.100.1/24 ipv4.method manual && nmcli con up arcade`
 
-| Symptom | Likely cause |
+On arcade (via Win+F4 → terminal): `sudo ip addr add 192.168.100.2/24 dev <iface>`
+
+Then: `ssh -o PubkeyAuthentication=no pump@192.168.100.2`
+
+## Live boot validation
+
+| Check | Command | Expected |
+|---|---|---|
+| Kernel version | `uname -r` | `6.12.x+deb13-amd64` |
+| XSanity running | `pgrep -a XSanity` | process listed |
+| PIUIO visible | `lsusb \| grep 0547` | `0547:1002` present |
+| ALSA device | `aplay -l` | ALC662 or HDA Intel listed |
+| Sound test | `aplay /usr/share/sounds/freedesktop/stereo/bell.oga` | audible, no hum |
+| Hotkey watcher | `systemctl status bootinsanity-hotkeys` | active (running) |
+| Logs | `tail -50 /tmp/bootinsanity-launch.log` | XSanity started, no crash loop |
+
+## System mode keybinds (Win = Super key)
+
+| Key | Expected |
 |---|---|
-| GRUB rescue prompt | install / grub | check `dmesg`, partition layout |
-| Black screen after autologin | X or driver | `Xorg.0.log` |
-| XSanity crash-loop | launcher | `bootinsanity-launch.log` |
-| Inputs dead | PIUIO kmod / udev | `dmesg \| grep piuio`, `/etc/udev/rules.d/24-andamiro.rules` |
+| Win+F4 | Kills XSanity, drops to lxterminal with keybind menu |
+| Win+Enter | Opens new lxterminal |
+| Win+V | Launches alsamixer |
+| Win+B | Reboots |
+| Win+P | Powers off |
+| Win+R | Resets XSanity settings (deletes Save/) |
+| Win+M | Opens file manager at /media/pump |
+| Win+X | Expands p3 to fill disk |
 
 ## Adding songs
 
 ```bash
-scp -r Songs/ pump@<mk9-ip>:/mnt/xsanity/Songs/
-ssh pump@<mk9-ip> sudo reboot
+scp -r Songs/ pump@192.168.100.2:/mnt/xsanity/Songs/
+ssh pump@192.168.100.2 sudo reboot
 ```
 
 Cache regenerates on first launch after reboot.
 
-## Updates
+## Update (re-flash p2, preserve p3)
 
-Boot install medium → pick **Update**. Re-flashes rootfs only; preserves
-XSanity, Songs, Save, Cache on the data partition.
+Boot install medium → **Update** from GRUB menu. Or test with:
+```bash
+make qemu-update
+```
+
+## Failure modes
+
+| Symptom | First check |
+|---|---|
+| GRUB rescue prompt | `lsblk` on cabinet, check 3 partitions present |
+| Black screen after boot | `cat /tmp/bootinsanity-launch.log` via SSH |
+| XSanity crash loop | Same log; check 3-crash system mode fallback |
+| No sound | `amixer` — confirm Master/PCM unmuted; `aplay -l` for device |
+| Win+F4 no response | `systemctl status bootinsanity-hotkeys` — should be active |

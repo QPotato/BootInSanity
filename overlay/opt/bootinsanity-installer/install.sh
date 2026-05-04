@@ -29,6 +29,10 @@ MODE=$(grep -oE 'install=[a-z]+' /proc/cmdline | head -1 | cut -d= -f2 || true)
 [[ -n "${MODE:-}" ]] || { err "install= not in /proc/cmdline"; exit 1; }
 [[ "$MODE" == "clean" || "$MODE" == "update" ]] || { err "invalid mode: $MODE"; exit 1; }
 
+# Non-interactive mode: install=clean-yes or install=update-yes skips confirmation.
+AUTO_YES=0
+[[ "$MODE" == *-yes ]] && { AUTO_YES=1; MODE="${MODE%-yes}"; }
+
 # Read version from ISO root metadata file.
 META=/run/live/medium/bootinsanity.meta
 VERSION=$(grep '^VERSION=' "$META" 2>/dev/null | cut -d= -f2 || echo "unknown")
@@ -107,8 +111,12 @@ else
     echo "  $P1 (boot) and $P3 (XSanity + Songs) will be preserved."
 fi
 
-read -rp "Type YES to confirm: " confirm
-[[ "$confirm" == "YES" ]] || { echo "Aborted."; sleep 2; exit 1; }
+if [[ "$AUTO_YES" -eq 1 ]]; then
+    echo "  (auto-confirmed via install=${MODE}-yes)"
+else
+    read -rp "Type YES to confirm: " confirm
+    [[ "$confirm" == "YES" ]] || { echo "Aborted."; sleep 2; exit 1; }
+fi
 
 # -------------------------------------------------------------------------
 # Partition + format

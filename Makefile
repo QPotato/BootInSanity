@@ -27,7 +27,14 @@ DOCKER_RUN = docker run --rm --privileged \
 TARGET_DISK := $(BUILD_DIR)/qemu-target.qcow2
 TARGET_SIZE ?= 16G
 
-.PHONY: help builder iso qemu qemu-install qemu-installed qemu-update target-disk shell clean distclean
+.PHONY: help builder iso qemu qemu-install qemu-installed qemu-update target-disk shell clean distclean manual
+
+manual:
+	pandoc docs/MANUAL.md -o docs/MANUAL.pdf \
+	    --pdf-engine=pdflatex \
+	    -V geometry:margin=25mm \
+	    -V fontsize=11pt \
+	    -V linkcolor=blue
 
 help:
 	@echo "BootInSanity build targets"
@@ -43,6 +50,7 @@ help:
 	@echo "  make qemu-installed              boot from installed target disk (no ISO)"
 	@echo "  make qemu-update                 boot ISO in update mode (preserves target disk p3)"
 	@echo "  make target-disk                 create empty qcow2 target disk"
+	@echo "  make manual                      compile docs/MANUAL.md → docs/MANUAL.pdf"
 	@echo "  make shell                       drop into builder container"
 	@echo "  make clean                       remove work + build dirs"
 	@echo "  make distclean                   also remove builder Docker image"

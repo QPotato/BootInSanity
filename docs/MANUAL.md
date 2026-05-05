@@ -185,8 +185,9 @@ Press **Win + G**, or reboot with **Win + B**.
 
 ### Adding Songs from USB
 
-1. Copy your song folders into a `Songs/` directory on a USB stick
-   - Optionally include `SongMovies/`, `Avatars/`, `NoteSkins/`
+1. Copy your content onto a USB stick — any combination of:
+   - `Songs/`, `SongMovies/`, `Avatars/`, `NoteSkins/` — always overwritten
+   - `Save/` — only newer files are copied (profiles are never downgraded)
 2. Plug the USB stick into the cabinet
 3. Enter System Mode (Win + F4)
 4. Press **Win + S**
@@ -211,17 +212,18 @@ XSanity/
   SongMovies/
   Avatars/
   NoteSkins/
+  Save/
 ```
 
 ```bash
 # From the BootInSanity repo directory:
-./scripts/push-songs.sh /path/to/my-songpack/
+./scripts/push-songs.sh /path/to/XSanity/
 
 # Custom arcade IP:
-./scripts/push-songs.sh /path/to/my-songpack/ 192.168.1.50
+./scripts/push-songs.sh /path/to/XSanity/ 192.168.1.50
 ```
 
-The script copies whichever of `Songs/`, `SongMovies/`, `Avatars/`, `NoteSkins/` exist inside that folder, fixes ownership, and offers to reboot the cabinet. Existing files are overwritten so updated step charts land correctly.
+The script copies whichever directories exist inside that folder. `Songs/`, `SongMovies/`, `Avatars/`, `NoteSkins/` are always overwritten. `Save/` uses keep-most-recent — profiles on the cabinet are never downgraded.
 
 #### SSH Access (advanced)
 

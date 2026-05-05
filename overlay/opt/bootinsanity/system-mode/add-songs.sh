@@ -1,6 +1,7 @@
 #!/bin/bash
-# Win+S: copy Songs/ and SongMovies/ from USB stick to /mnt/xsanity/.
-# Overwrites existing files (step charts get updated).
+# Win+S: copy Songs/, SongMovies/, Avatars/, NoteSkins/, Save/ from USB to /mnt/xsanity/.
+# Songs/SongMovies/Avatars/NoteSkins: always overwrite (step charts get updated).
+# Save/: keep most recent version of each file (--update).
 
 lxterminal --title="Add Songs" -e bash -c '
 set -euo pipefail
@@ -15,13 +16,13 @@ echo ""
 # Find removable mounts with vfat/exfat/ntfs
 SOURCES=()
 while IFS= read -r mp; do
-    [[ -d "$mp/Songs" || -d "$mp/SongMovies" ]] && SOURCES+=("$mp")
+    [[ -d "$mp/Songs" || -d "$mp/SongMovies" || -d "$mp/Save" ]] && SOURCES+=("$mp")
 done < <(findmnt -rno TARGET,FSTYPE 2>/dev/null \
          | awk '"'"'$2~/vfat|exfat|ntfs|fuseblk/{print $1}'"'"')
 
 # Also check /media/pump subdirs
 for mp in /media/pump/*/; do
-    [[ -d "$mp/Songs" || -d "$mp/SongMovies" || -d "$mp/Avatars" || -d "$mp/NoteSkins" ]] && SOURCES+=("${mp%/}")
+    [[ -d "$mp/Songs" || -d "$mp/SongMovies" || -d "$mp/Avatars" || -d "$mp/NoteSkins" || -d "$mp/Save" ]] && SOURCES+=("${mp%/}")
 done
 
 # Deduplicate
@@ -51,6 +52,7 @@ echo ""
 for dir in Songs SongMovies Avatars NoteSkins; do
     [[ -d "$SRC/$dir" ]] && echo "  $dir/ → will copy + overwrite"
 done
+[[ -d "$SRC/Save" ]] && echo "  Save/ → will copy, keep most recent"
 echo ""
 read -rp "Proceed? [Y/n] " confirm
 [[ "${confirm:-Y}" =~ ^[Yy] ]] || { echo "Cancelled."; read -rp "Press Enter..."; exit 0; }
@@ -63,7 +65,13 @@ for dir in Songs SongMovies Avatars NoteSkins; do
     echo ""
 done
 
-chown -R pump:pump "$DEST/Songs" "$DEST/SongMovies" "$DEST/Avatars" "$DEST/NoteSkins" 2>/dev/null || true
+if [[ -d "$SRC/Save" ]]; then
+    echo "--- Syncing Save/ (keep most recent) ---"
+    rsync -av --update --progress "$SRC/Save/" "$DEST/Save/"
+    echo ""
+fi
+
+chown -R pump:pump "$DEST/Songs" "$DEST/SongMovies" "$DEST/Avatars" "$DEST/NoteSkins" "$DEST/Save" 2>/dev/null || true
 
 echo "Done. Reboot to rebuild XSanity cache."
 echo ""

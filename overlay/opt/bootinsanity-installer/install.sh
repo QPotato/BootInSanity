@@ -139,6 +139,10 @@ fi
 HAS_PIU_WARNING=0
 for r in "${PIU_REASONS[@]}"; do [[ -n "$r" ]] && HAS_PIU_WARNING=1; done
 
+echo ""
+echo "  !! The BootInSanity developers are NOT responsible for any data loss."
+echo ""
+
 if [[ ${#TARGETS[@]} -eq 1 && "$HAS_PIU_WARNING" -eq 0 ]]; then
     TARGET_NAME=$(awk '{print $1}' <<<"${TARGETS[0]}")
     echo "Auto-selected target: ${TARGETS[0]}"
@@ -148,8 +152,6 @@ else
 
   !! WARNING: One or more disks appear to contain PIU/arcade game software.
   !! Verify carefully before proceeding.
-  !!
-  !! The BootInSanity developers are NOT responsible for any data loss.
 
 WARN
     fi

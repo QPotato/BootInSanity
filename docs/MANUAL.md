@@ -171,6 +171,7 @@ Press **Win + G**, or reboot with **Win + B**.
 | Win + S | Add songs from USB stick |
 | Win + V | Volume mixer (alsamixer) |
 | Win + R | Reset XSanity settings |
+| Win + E | Input device polling rate check |
 | Win + X | Expand data partition to fill disk |
 | Win + B | Reboot |
 | Win + P | Power off |

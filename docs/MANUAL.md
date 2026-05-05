@@ -47,6 +47,7 @@ BootInSanity is designed and validated for the **Andamiro MK9** cabinet.
 |---|---|
 | Username | `pump` |
 | Password | `pump` |
+| Static IP (over ethernet) | 192.168.100.2 |
 | SSH port | 22 |
 
 ---
@@ -97,7 +98,7 @@ Use [Rufus](https://rufus.ie/) or [balenaEtcher](https://etcher.balena.io/):
 7. Wait for the BootInSanity installer menu to appear:
 
 ```
-  BootInSanity vX.X - Installer
+  BootInSanity vX.X -- Installer
   ------------------------------
   Clean Install
   Update
@@ -200,20 +201,25 @@ Requires an ethernet cable between your laptop and the cabinet.
 
 The cabinet has a static IP: **192.168.100.2**. Configure your laptop with a static IP on the same subnet (e.g. 192.168.100.1/24).
 
-Use the included `push-songs.sh` script from your laptop:
+Use the included `push-songs.sh` script from your laptop. Pass the folder that **contains** your content directories:
+
+```
+XSanity/
+  Songs/
+  SongMovies/
+  Avatars/
+  NoteSkins/
+```
 
 ```bash
 # From the BootInSanity repo directory:
-./scripts/push-songs.sh /path/to/your/songpack
-
-# Or pass the Songs/ folder directly:
-./scripts/push-songs.sh /path/to/Songs/
+./scripts/push-songs.sh /path/to/my-songpack/
 
 # Custom arcade IP:
-./scripts/push-songs.sh /path/to/Songs/ 192.168.1.50
+./scripts/push-songs.sh /path/to/my-songpack/ 192.168.1.50
 ```
 
-The script copies `Songs/`, `SongMovies/`, `Avatars/`, and `NoteSkins/` (whichever are present), fixes ownership, and offers to reboot the cabinet.
+The script copies whichever of `Songs/`, `SongMovies/`, `Avatars/`, `NoteSkins/` exist inside that folder, fixes ownership, and offers to reboot the cabinet. Existing files are overwritten so updated step charts land correctly.
 
 #### SSH Access (advanced)
 

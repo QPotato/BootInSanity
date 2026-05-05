@@ -49,19 +49,85 @@ if [[ -n "$LIVE_SRC" ]]; then
     LIVE_DISK=$(lsblk -no PKNAME "$LIVE_SRC" 2>/dev/null || true)
 fi
 
+# Checks all partitions on a disk for known PIU/arcade game signatures.
+# Prints a short reason string and returns 0 if a match is found, 1 otherwise.
+#
+# Known signatures across PIU versions:
+#   Linux era  (Extra/Premiere):  ext4 labeled "rootMX21"
+#   Windows era (NX Absolute):    FAT32 "PUMPOS", FAT32/vfat "SETTINGS", NTFS "PUMPNTFS",
+#                                  or PIU.EXE found inside NTFS partition
+#   Linux era  (Fiesta EX):       ext2 unlabeled + ext2 "SETTINGS"
+ntfs_has_piu_exe() {
+    local part="$1"
+    local mnt
+    mnt=$(mktemp -d /tmp/bis-probe.XXXXXX)
+    local found=1  # 1 = not found (shell convention: 0 = success)
+    if mount -t ntfs3 -o ro,noatime "$part" "$mnt" 2>/dev/null \
+       || mount -t ntfs-3g -o ro,noatime,nofail "$part" "$mnt" 2>/dev/null; then
+        # Search two levels deep for PIU.EXE (case-insensitive via find -iname)
+        if find "$mnt" -maxdepth 2 -iname "piu.exe" -print -quit 2>/dev/null | grep -q .; then
+            found=0
+        fi
+        umount "$mnt" 2>/dev/null || true
+    fi
+    rmdir "$mnt" 2>/dev/null || true
+    return $found
+}
+
+disk_has_piu_signature() {
+    local disk="$1"
+    local reasons=()
+    local part fstype label
+    while IFS= read -r part; do
+        fstype=$(blkid -s TYPE  -o value "$part" 2>/dev/null || true)
+        label=$(blkid  -s LABEL -o value "$part" 2>/dev/null || true)
+        case "$label" in
+            PUMPOS)   reasons+=("PUMPOS partition") ;;
+            PUMPNTFS) reasons+=("PUMPNTFS partition") ;;
+            rootMX21) reasons+=("rootMX21 Linux partition") ;;
+            SETTINGS) reasons+=("SETTINGS partition") ;;
+        esac
+        if [[ "$fstype" == "ntfs" ]]; then
+            ntfs_has_piu_exe "$part" && reasons+=("PIU.EXE found on NTFS partition")
+        fi
+    done < <(lsblk -lnpo NAME "/dev/$disk" 2>/dev/null | grep -v "^/dev/$disk$")
+    # Deduplicate reasons
+    local seen=() unique=()
+    for r in "${reasons[@]}"; do
+        local found=0
+        for s in "${seen[@]:-}"; do [[ "$s" == "$r" ]] && found=1 && break; done
+        [[ $found -eq 0 ]] && unique+=("$r") && seen+=("$r")
+    done
+    if [[ ${#unique[@]} -gt 0 ]]; then
+        local IFS=", "
+        echo "${unique[*]}"
+        return 0
+    fi
+    return 1
+}
+
+export -f ntfs_has_piu_exe disk_has_piu_signature
+export LIVE_DISK
+
+# TARGETS entries: "name size model"
+# PIU_REASONS entries: "" or "reason1, reason2" (index-matched to TARGETS)
 mapfile -t TARGETS < <(
     lsblk -dn -o NAME,TYPE,SIZE,MODEL | awk '$2=="disk"{print $0}' \
         | while read -r name type size model; do
             [[ "$name" == "$LIVE_DISK" ]] && continue
-            # Skip floppies, CD-ROMs, ramdisks, loop devices, zram
             case "$name" in
                 fd*|sr*|loop*|ram*|zram*) continue ;;
             esac
-            # Skip disks smaller than 4 GB (sanity guard against fake/tiny devices)
             size_bytes=$(blockdev --getsize64 "/dev/$name" 2>/dev/null || echo 0)
             (( size_bytes >= 4 * 1024 * 1024 * 1024 )) || continue
             echo "$name $size $model"
         done
+)
+mapfile -t PIU_REASONS < <(
+    for t in "${TARGETS[@]}"; do
+        name=$(awk '{print $1}' <<<"$t")
+        disk_has_piu_signature "$name" || echo ""
+    done
 )
 
 if [[ ${#TARGETS[@]} -eq 0 ]]; then
@@ -70,16 +136,40 @@ if [[ ${#TARGETS[@]} -eq 0 ]]; then
     reboot; exit 0
 fi
 
-if [[ ${#TARGETS[@]} -eq 1 ]]; then
+HAS_PIU_WARNING=0
+for r in "${PIU_REASONS[@]}"; do [[ -n "$r" ]] && HAS_PIU_WARNING=1; done
+
+if [[ ${#TARGETS[@]} -eq 1 && "$HAS_PIU_WARNING" -eq 0 ]]; then
     TARGET_NAME=$(awk '{print $1}' <<<"${TARGETS[0]}")
     echo "Auto-selected target: ${TARGETS[0]}"
 else
-    echo "Multiple disks detected:"
+    if [[ "$HAS_PIU_WARNING" -eq 1 ]]; then
+        cat <<'WARN'
+
+  !! WARNING: One or more disks appear to contain PIU/arcade game software.
+  !! Verify carefully before proceeding.
+  !!
+  !! The BootInSanity developers are NOT responsible for any data loss.
+
+WARN
+    fi
+    if [[ ${#TARGETS[@]} -eq 1 ]]; then
+        echo "  Only disk found:"
+    else
+        echo "  Available disks:"
+    fi
     i=1
     for t in "${TARGETS[@]}"; do
-        echo "  $i) $t"
+        reason="${PIU_REASONS[$((i-1))]:-}"
+        if [[ -n "$reason" ]]; then
+            echo "  $i) $t"
+            echo "     !! Possible PIU disk: $reason"
+        else
+            echo "  $i) $t"
+        fi
         i=$((i+1))
     done
+    echo ""
     while :; do
         read -rp "Pick target [1-${#TARGETS[@]}]: " sel
         [[ "$sel" =~ ^[0-9]+$ ]] && (( sel >= 1 && sel <= ${#TARGETS[@]} )) && break

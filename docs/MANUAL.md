@@ -232,7 +232,7 @@ ssh pump@192.168.100.2
 # Password: pump
 ```
 
-Songs live at `/mnt/xsanity/Songs/` on the cabinet.
+The game lives at `/mnt/xsanity/` on the cabinet.
 
 ### Adjusting Volume
 
@@ -243,7 +243,7 @@ Songs live at `/mnt/xsanity/Songs/` on the cabinet.
 
 ### Resetting XSanity Settings
 
-Deletes the XSanity `Save/` directory, which contains settings and scores. XSanity will regenerate defaults on next launch.
+Resets XSanity settings and scores. Deletes the contents of `Save/` except `Save/LocalProfiles/` — player profiles are preserved. XSanity will regenerate defaults on next launch.
 
 1. Enter System Mode (Win + F4)
 2. Press **Win + R**

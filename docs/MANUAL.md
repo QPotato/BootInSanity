@@ -109,9 +109,9 @@ Use [Rufus](https://rufus.ie/) or [balenaEtcher](https://etcher.balena.io/):
 9. The installer shows a disclaimer and lists available disks. If only one disk is found it is selected automatically; otherwise type the number of the correct disk and press Enter
    - **If a disk is flagged as a possible PIU/game disk, read the warning carefully before proceeding**
 10. When prompted, type `YES` (in capitals) and press Enter to confirm disk erasure
-11. Wait for installation to complete — the cabinet will reboot automatically
-12. Remove the USB drive after the reboot
-13. The system will boot directly into XSanity
+10. Wait for installation to complete — the cabinet will reboot automatically
+11. Remove the USB drive after the reboot
+12. The system will boot directly into XSanity
 
 > **Note:** First boot after installation takes slightly longer — XSanity rebuilds its song cache. This is normal.
 
@@ -170,7 +170,6 @@ Press **Win + G**, or reboot with **Win + B**.
 | Win + G | Return to game |
 | Win + S | Add songs from USB stick |
 | Win + V | Volume mixer (alsamixer) |
-| Win + M | File manager (memory cards / USB) |
 | Win + R | Reset XSanity settings |
 | Win + X | Expand data partition to fill disk |
 | Win + B | Reboot |

@@ -7,7 +7,6 @@
 #   Win+F4   → exit-to-desktop (system mode)
 #   Win+r    → reset-xsanity
 #   Win+v    → volume-mixer
-#   Win+m    → configure-memcards
 #   Win+b    → reboot
 #   Win+p    → poweroff
 
@@ -23,7 +22,6 @@ ACTIONS = {
     evdev.ecodes.KEY_S:       '/opt/bootinsanity/system-mode/add-songs.sh',
     evdev.ecodes.KEY_R:       '/opt/bootinsanity/system-mode/reset-xsanity.sh',
     evdev.ecodes.KEY_V:       '/opt/bootinsanity/system-mode/volume-mixer.sh',
-    evdev.ecodes.KEY_M:       '/opt/bootinsanity/system-mode/configure-memcards.sh',
     evdev.ecodes.KEY_B:       'systemctl reboot',
     evdev.ecodes.KEY_P:       'systemctl poweroff',
 }

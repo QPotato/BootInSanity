@@ -26,7 +26,6 @@ lxterminal --title="BootInSanity — System Mode" -e bash -c "
     echo '  Win+G       Return to game'
     echo '  Win+S       Add songs from USB'
     echo '  Win+Enter   New terminal'
-    echo '  Win+M       Memory cards (file manager)'
     echo '  Win+R       Reset XSanity settings'
     echo '  Win+V       Volume mixer'
     echo '  Win+E       Polling rate check'

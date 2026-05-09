@@ -27,7 +27,17 @@ DOCKER_RUN = docker run --rm --privileged \
 TARGET_DISK := $(BUILD_DIR)/qemu-target.qcow2
 TARGET_SIZE ?= 16G
 
-.PHONY: help builder iso qemu qemu-install qemu-installed qemu-update target-disk shell clean distclean manual
+.PHONY: help builder iso qemu qemu-install qemu-installed qemu-update target-disk shell clean distclean manual fetch-nvidia
+
+# NVIDIA proprietary .run installers (host-fetched; mounted into builder).
+# Pinned versions: 470.256.02 = last 470 (Kepler/early Maxwell, kernel 6.x patched).
+#                  535.247.01 = LTS production branch (Maxwell 2.0+ → Ada).
+NVIDIA_DIR     := $(ROOT)/vendor/nvidia
+NVIDIA_470_VER := 470.256.02
+NVIDIA_CUR_VER := 535.247.01
+NVIDIA_470_RUN := $(NVIDIA_DIR)/NVIDIA-Linux-x86_64-$(NVIDIA_470_VER).run
+NVIDIA_CUR_RUN := $(NVIDIA_DIR)/NVIDIA-Linux-x86_64-$(NVIDIA_CUR_VER).run
+NVIDIA_BASE    := https://us.download.nvidia.com/XFree86/Linux-x86_64
 
 manual:
 	pandoc docs/MANUAL.md -o docs/MANUAL.pdf \
@@ -59,7 +69,23 @@ builder:
 	docker build --pull=never -t $(IMAGE_NAME) . 2>/dev/null \
 	    || docker build -t $(IMAGE_NAME) .
 
-iso: builder
+fetch-nvidia: $(NVIDIA_470_RUN) $(NVIDIA_CUR_RUN)
+
+$(NVIDIA_470_RUN):
+	@mkdir -p $(NVIDIA_DIR)
+	@echo "==> Fetching NVIDIA $(NVIDIA_470_VER) (~280 MB)"
+	curl -fL --retry 3 -o $@.tmp \
+	    $(NVIDIA_BASE)/$(NVIDIA_470_VER)/NVIDIA-Linux-x86_64-$(NVIDIA_470_VER).run
+	chmod +x $@.tmp && mv $@.tmp $@
+
+$(NVIDIA_CUR_RUN):
+	@mkdir -p $(NVIDIA_DIR)
+	@echo "==> Fetching NVIDIA $(NVIDIA_CUR_VER) (~340 MB)"
+	curl -fL --retry 3 -o $@.tmp \
+	    $(NVIDIA_BASE)/$(NVIDIA_CUR_VER)/NVIDIA-Linux-x86_64-$(NVIDIA_CUR_VER).run
+	chmod +x $@.tmp && mv $@.tmp $@
+
+iso: builder fetch-nvidia
 	@if [ -z "$(DEBIAN_ISO)" ]; then \
 	    echo "ERROR: DEBIAN_ISO=<path> required"; exit 1; fi
 	@if [ ! -f "$(DEBIAN_ISO)" ]; then \

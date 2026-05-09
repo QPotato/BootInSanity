@@ -173,6 +173,8 @@ else
         network-manager chrony
         # Remote management
         openssh-server
+        # mDNS so target reachable as bootinsanity.local
+        avahi-daemon libnss-mdns
         # Terminal for missing-xsanity screen + system mode
         lxterminal
         # Fonts
@@ -187,16 +189,12 @@ else
         pcmanfm evtest cloud-guest-utils usbutils
         # Python + evdev for hotkey watcher
         python3 python3-evdev
+        # GPU auto-detect + DKMS toolchain (nvidia driver build at install time)
+        nvidia-detect
+        dkms linux-headers-amd64 build-essential
+        # ethtool for diagnostics
+        ethtool
     )
-    case "$GPU" in
-        nouveau) ;;  # in-tree modesetting; no extra packages
-        340|390|470)
-            # Community NVIDIA legacy packages for trixie not yet implemented.
-            # Will be added when community repos are set up (see PLAN.md trixie section).
-            echo "ERROR: GPU=$GPU not yet supported on trixie. Use GPU=nouveau." >&2
-            exit 1
-            ;;
-    esac
     INCLUDE_CSV=$(IFS=,; echo "${INCLUDE[*]}")
 
     # non-free-firmware is a separate component in trixie (split from non-free in bookworm).
@@ -284,7 +282,38 @@ chroot_run sed -i 's/^# *en_US\.UTF-8/en_US.UTF-8/' /etc/locale.gen
 chroot_run locale-gen
 chroot_run update-locale LANG=en_US.UTF-8
 
-
+# Stage NVIDIA upstream .run installers. Debian trixie dropped legacy 470xx
+# packages; we use NVIDIA's official .run which still gets kernel-6.x updates.
+# Build-host fetches via `make fetch-nvidia` (Makefile) — required input here.
+echo "==> [4b/8] Staging NVIDIA .run installers"
+NVIDIA_VENDOR="${ROOT_DIR}/vendor/nvidia"
+# Wipe previous staging (cached chroot may have stale debs from older builds).
+rm -rf "${CHROOT}/opt/bootinsanity/drivers"
+mkdir -p "${CHROOT}/opt/bootinsanity/drivers/current" \
+         "${CHROOT}/opt/bootinsanity/drivers/470"
+copied_count=0
+for f in "$NVIDIA_VENDOR"/NVIDIA-Linux-x86_64-*.run; do
+    [[ -f "$f" ]] || continue
+    base="$(basename "$f")"
+    case "$base" in
+        NVIDIA-Linux-x86_64-470.*.run)
+            cp "$f" "${CHROOT}/opt/bootinsanity/drivers/470/installer.run"
+            chmod +x  "${CHROOT}/opt/bootinsanity/drivers/470/installer.run"
+            echo "    staged 470: $base"
+            copied_count=$((copied_count+1))
+            ;;
+        NVIDIA-Linux-x86_64-5*.run|NVIDIA-Linux-x86_64-6*.run)
+            cp "$f" "${CHROOT}/opt/bootinsanity/drivers/current/installer.run"
+            chmod +x  "${CHROOT}/opt/bootinsanity/drivers/current/installer.run"
+            echo "    staged current: $base"
+            copied_count=$((copied_count+1))
+            ;;
+    esac
+done
+if [[ "$copied_count" -eq 0 ]]; then
+    echo "    WARN: no NVIDIA .run files found in $NVIDIA_VENDOR" >&2
+    echo "    Run 'make fetch-nvidia' to download them. Continuing without GPU drivers." >&2
+fi
 
 
 echo "==> [5/8] Injecting XSanity"
@@ -380,12 +409,12 @@ MENU TITLE BootInSanity Installer (${VERSION})
 LABEL clean
   MENU LABEL Clean Install (wipes target disk)
   KERNEL /live/vmlinuz
-  APPEND initrd=/live/initrd boot=live install=clean quiet
+  APPEND initrd=/live/initrd boot=live install=clean nomodeset quiet
 
 LABEL update
   MENU LABEL Update (re-flash rootfs, preserve XSanity + Songs)
   KERNEL /live/vmlinuz
-  APPEND initrd=/live/initrd boot=live install=update quiet
+  APPEND initrd=/live/initrd boot=live install=update nomodeset quiet
 
 LABEL live
   MENU LABEL Live Boot (no install — play from USB only)
@@ -400,12 +429,12 @@ set timeout=10
 set default=0
 
 menuentry "BootInSanity $VERSION — Clean Install (wipes target disk)" {
-    linux  /live/vmlinuz boot=live install=clean quiet
+    linux  /live/vmlinuz boot=live install=clean nomodeset quiet
     initrd /live/initrd
 }
 
 menuentry "BootInSanity $VERSION — Update (re-flash rootfs, preserve XSanity + Songs)" {
-    linux  /live/vmlinuz boot=live install=update quiet
+    linux  /live/vmlinuz boot=live install=update nomodeset quiet
     initrd /live/initrd
 }
 

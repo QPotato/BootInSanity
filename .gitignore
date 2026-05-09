@@ -6,6 +6,9 @@ build/
 *.vhd
 *.qcow2
 
+# Vendored NVIDIA .run installers (fetched by `make fetch-nvidia`)
+vendor/nvidia/*.run
+
 # Files NOT redistributed (third-party / reference / private notes)
 itg-v0-24/
 XSanity 0.96.0/

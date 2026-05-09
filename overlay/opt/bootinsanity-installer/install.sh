@@ -7,6 +7,8 @@
 # update  - re-flash rootfs (p2) only; preserve p1 + p3 (user XSanity + Songs)
 
 set -euo pipefail
+# Trace enabled when kernel cmdline contains install-debug (qemu test only).
+grep -q install-debug /proc/cmdline 2>/dev/null && set -x
 
 LOG=/var/log/bootinsanity-install.log
 exec > >(tee -a "$LOG") 2>&1
@@ -27,11 +29,13 @@ EOF
 
 MODE=$(grep -oE 'install=[a-z-]+' /proc/cmdline | head -1 | cut -d= -f2 || true)
 [[ -n "${MODE:-}" ]] || { err "install= not in /proc/cmdline"; exit 1; }
-[[ "$MODE" == "clean" || "$MODE" == "update" ]] || { err "invalid mode: $MODE"; exit 1; }
 
 # Non-interactive mode: install=clean-yes or install=update-yes skips confirmation.
+# Strip suffix BEFORE validating mode so "clean-yes" passes the check.
 AUTO_YES=0
 [[ "$MODE" == *-yes ]] && { AUTO_YES=1; MODE="${MODE%-yes}"; }
+
+[[ "$MODE" == "clean" || "$MODE" == "update" ]] || { err "invalid mode: $MODE"; exit 1; }
 
 # Read version from ISO root metadata file.
 META=/run/live/medium/bootinsanity.meta
@@ -301,13 +305,143 @@ tmpfs          /tmp          tmpfs defaults,nosuid,nodev     0 0
 EOF
 
 # -------------------------------------------------------------------------
-# GRUB hybrid (BIOS + UEFI)
+# Bind mounts for chroot ops (NVIDIA install + GRUB)
 # -------------------------------------------------------------------------
-echo "==> Installing GRUB"
 for d in proc sys dev dev/pts; do
     mount --bind "/$d" "$MNT/$d"
 done
 trap 'for d in dev/pts dev sys proc; do umount "$MNT/$d" 2>/dev/null || true; done' EXIT
+
+# -------------------------------------------------------------------------
+# NVIDIA driver detect + install (pre-staged debs, offline-safe)
+# -------------------------------------------------------------------------
+detect_nvidia_branch() {
+    # Combine nvidia-detect (Debian) with raw lspci as fallback.
+    # Output rules:
+    #   - no NVIDIA card present       → none
+    #   - "470 driver series" mentioned and current driver NOT recommended → 470
+    #   - any other NVIDIA card        → current
+    local out has_nvidia=0
+    if chroot "$MNT" lspci -nn -d 10de: 2>/dev/null \
+       | grep -qE "VGA compatible|3D controller|Display controller"; then
+        has_nvidia=1
+    fi
+    [[ "$has_nvidia" -eq 0 ]] && { echo "none"; return; }
+
+    out=$(chroot "$MNT" nvidia-detect 2>&1 || true)
+    # Prefer 470 only when nvidia-detect explicitly recommends it as the
+    # supported branch (i.e. not just listing it as a legacy fallback).
+    if grep -qiE "only supported by the (legacy )?470" <<<"$out"; then
+        echo "470"; return
+    fi
+    if grep -qE "It is recommended to install the[[:space:]]+nvidia-driver" <<<"$out"; then
+        echo "current"; return
+    fi
+    # Fallback: card present, output unclear → assume 470 if mentioned, else current.
+    if grep -qE "470[[:space:]]+driver" <<<"$out"; then
+        echo "470"; return
+    fi
+    echo "current"
+}
+
+run_nvidia_installer() {
+    local branch="$1"
+    local run="/opt/bootinsanity/drivers/${branch}/installer.run"
+    local target_kver
+    target_kver="$(ls -1 "$MNT/lib/modules" 2>/dev/null | head -1)"
+    [[ -n "$target_kver" ]] || { err "no kernel modules dir under $MNT/lib/modules"; return 1; }
+
+    [[ -x "$MNT$run" ]] || { err "missing $run on target"; return 1; }
+
+    # Blacklist nouveau in target rootfs so it won't load on first boot
+    # before the installer's blacklist takes effect.
+    cat > "$MNT/etc/modprobe.d/blacklist-nouveau.conf" <<'NOUVEAU'
+blacklist nouveau
+options nouveau modeset=0
+NOUVEAU
+
+    echo "==> Running NVIDIA $branch .run installer (DKMS, ~3-5 min)"
+    chroot "$MNT" sh "$run" \
+        --silent \
+        --dkms \
+        --no-questions \
+        --accept-license \
+        --no-x-check \
+        --no-nouveau-check \
+        --install-libglvnd \
+        --kernel-name="$target_kver" \
+        --kernel-source-path="/lib/modules/$target_kver/build" \
+        || { err ".run installer failed (see /var/log/nvidia-installer.log on target)"; return 1; }
+
+    # Rebuild initramfs to ensure nouveau-blacklist applies early.
+    chroot "$MNT" update-initramfs -u -k "$target_kver" || true
+    return 0
+}
+
+set_grub_cmdline() {
+    # Write /etc/default/grub with our cmdline. The grub-pc-bin / grub-efi-amd64-bin
+    # packages we use don't ship this file (only grub-pc / grub-efi-amd64 postinsts
+    # do), so we always write fresh.
+    local val="$1"
+    cat > "$MNT/etc/default/grub" <<GRUBCFG
+# /etc/default/grub — managed by BootInSanity installer.
+GRUB_DEFAULT=0
+GRUB_TIMEOUT=2
+GRUB_DISTRIBUTOR="BootInSanity"
+GRUB_CMDLINE_LINUX_DEFAULT="$val"
+GRUB_CMDLINE_LINUX=""
+GRUB_DISABLE_OS_PROBER=true
+GRUBCFG
+}
+
+echo "==> Detecting GPU"
+NV_BRANCH=$(detect_nvidia_branch)
+echo "    GPU detection → $NV_BRANCH"
+
+# NVIDIA proprietary install is opt-in: pass `install-nvidia` on kernel cmdline.
+# Default is nouveau (in-tree), which works for Kepler/Maxwell/Pascal on trixie's
+# 6.12 kernel. The 470.256.02 .run does not build against kernel >=6.10 without
+# community patches (phys_to_dma / dma_is_direct removed).
+INSTALL_NVIDIA=0
+grep -qw install-nvidia /proc/cmdline && INSTALL_NVIDIA=1
+
+INSTALLED_NV=0
+NV_FALLBACK=0
+if [[ "$INSTALL_NVIDIA" -eq 1 && ( "$NV_BRANCH" == "470" || "$NV_BRANCH" == "current" ) ]]; then
+    if [[ -x "$MNT/opt/bootinsanity/drivers/$NV_BRANCH/installer.run" ]]; then
+        if run_nvidia_installer "$NV_BRANCH"; then
+            INSTALLED_NV=1
+        else
+            err "NVIDIA install failed; falling back to nouveau+nomodeset"
+            NV_FALLBACK=1
+        fi
+    else
+        err "no installer.run at /opt/bootinsanity/drivers/$NV_BRANCH/ — falling back to nouveau+nomodeset"
+        NV_FALLBACK=1
+    fi
+else
+    echo "    Using nouveau / i915 / amdgpu (KMS). NVIDIA proprietary skipped"
+    echo "    (pass install-nvidia on kernel cmdline to attempt .run install)"
+fi
+
+# GRUB cmdline: NVIDIA installed → KMS via nvidia. Otherwise → nomodeset
+# (safe baseline; some nouveau-only cards crash with KMS, e.g. GT 710 GK208).
+if [[ "$INSTALLED_NV" -eq 1 ]]; then
+    set_grub_cmdline "quiet nvidia-drm.modeset=1"
+    echo "    GRUB cmdline: quiet nvidia-drm.modeset=1"
+elif [[ "$NV_FALLBACK" -eq 1 ]]; then
+    set_grub_cmdline "quiet nomodeset"
+    echo "    GRUB cmdline: quiet nomodeset (nouveau-only NVIDIA card)"
+else
+    # No NVIDIA hardware — let i915/amdgpu/modesetting do KMS.
+    set_grub_cmdline "quiet"
+    echo "    GRUB cmdline: quiet (KMS enabled)"
+fi
+
+# -------------------------------------------------------------------------
+# GRUB hybrid (BIOS + UEFI)
+# -------------------------------------------------------------------------
+echo "==> Installing GRUB"
 
 # BIOS GRUB to MBR
 chroot "$MNT" grub-install --target=i386-pc --boot-directory=/boot \
